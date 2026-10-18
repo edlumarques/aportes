@@ -201,8 +201,115 @@
     return [...grupos.values()].sort((a, b) => (a.data < b.data ? -1 : 1));
   }
 
+  // ---------- Projeção de IR em caso de venda total ----------
+  // Regras (Brasil, pessoa física). Ficam aqui para facilitar ajuste se a lei mudar.
+  const REGRAS_IR = {
+    rv15: { aliquota: 0.15, darf: '6015' },                       // ETFs de renda variável
+    tesouro: [[180, 0.225], [360, 0.20], [720, 0.175], [Infinity, 0.15]], // dias corridos → alíquota
+    iof: [96,93,90,86,83,80,76,73,70,66,63,60,56,53,50,46,43,40,36,33,30,26,23,20,16,13,10,6,3], // % do rendimento, dias 1..29
+    criptoNacional: { isencaoVendasMes: 35000, darf: '4600',
+      faixas: [[5e6, 0.15], [10e6, 0.175], [30e6, 0.20], [Infinity, 0.225]] }, // por parcela do lucro
+    criptoExterior: { aliquota: 0.15 },
+  };
+  const diasEntre = (a, b) => Math.floor((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+  function aliquotaTesouro(dias) { for (const [lim, a] of REGRAS_IR.tesouro) if (dias <= lim) return a; return 0.15; }
+  function iofPct(dias) { return dias >= 30 || dias < 1 ? 0 : REGRAS_IR.iof[dias - 1] / 100; }
+  function irProgressivo(lucro) {
+    let ir = 0, base = 0;
+    for (const [teto, a] of REGRAS_IR.criptoNacional.faixas) {
+      const parcela = Math.min(lucro, teto) - base;
+      if (parcela <= 0) break;
+      ir += parcela * a; base = teto;
+    }
+    return ir;
+  }
+  function addDias(iso, n) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  // Último dia útil (seg–sex) do mês seguinte; feriados não são considerados
+  function vencimentoDarf(hojeISO) {
+    const d = new Date(hojeISO + 'T00:00:00Z');
+    const fim = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0));
+    while (fim.getUTCDay() === 0 || fim.getUTCDay() === 6) fim.setUTCDate(fim.getUTCDate() - 1);
+    return fim.toISOString().slice(0, 10);
+  }
+
+  /* pos: saída de posicao(); lancs: lançamentos; cot: {ativo_id: {preco, preco_venda}};
+     opts: { hoje, btcRegime: 'nacional'|'exterior', prejuizoRv: prejuízo acumulado a compensar } */
+  function projecaoIR(pos, lancs, cot, opts) {
+    const hoje = opts.hoje, out = { rv: [], tesouro: [], cripto: [], darfs: [], avisos: [] };
+    const comQtd = pos.filter((p) => p.qtd > 1e-12);
+
+    // ETFs / renda variável: lucro e prejuízo se compensam no mês
+    for (const p of comQtd.filter((p) => p.classe_ir === 'rv15')) {
+      if (p.preco == null) { out.avisos.push(`${p.ticker}: sem cotação, fora da simulação`); continue; }
+      out.rv.push({ ticker: p.ticker, bruto: p.valor, custo: p.custo, lucro: p.valor - p.custo });
+    }
+    const lucroRv = out.rv.reduce((s, x) => s + x.lucro, 0);
+    const prej = Math.max(0, Number(opts.prejuizoRv) || 0);
+    const baseRv = Math.max(0, lucroRv - prej);
+    const irRv = baseRv * REGRAS_IR.rv15.aliquota;
+    out.resumoRv = { lucro: lucroRv, prejuizoUsado: Math.min(prej, Math.max(0, lucroRv)), base: baseRv, ir: irRv,
+                     prejuizoSobra: Math.max(0, prej - Math.max(0, lucroRv)) + Math.max(0, -lucroRv) };
+    // rateio do IR por ativo (só para exibir o líquido por linha)
+    const somaPos = out.rv.reduce((s, x) => s + Math.max(0, x.lucro), 0);
+    for (const x of out.rv) { x.ir = somaPos > 0 ? irRv * Math.max(0, x.lucro) / somaPos : 0; x.liquido = x.bruto - x.ir; }
+    if (irRv > 0.005) out.darfs.push({ codigo: REGRAS_IR.rv15.darf, desc: 'ETFs (renda variável)', valor: irRv, vencimento: vencimentoDarf(hoje) });
+
+    // Tesouro: tabela regressiva compra a compra, retido na fonte
+    for (const p of comQtd.filter((p) => p.classe_ir === 'tesouro')) {
+      const c = cot[p.id] || {};
+      let pu = Number(c.preco_venda);
+      if (!(pu > 0)) { pu = Number(c.preco); out.avisos.push(`${p.ticker}: sem PU de venda; usado o PU de compra`); }
+      if (!(pu > 0)) { out.avisos.push(`${p.ticker}: sem cotação, fora da simulação`); continue; }
+      const lotes = lancs.filter((l) => l.ativo_id === p.id).map((l) => {
+        const q = Number(l.quantidade), custo = q * Number(l.preco) + Number(l.taxas || 0);
+        const dias = Math.max(0, diasEntre(l.data, hoje));
+        const bruto = q * pu, rend = bruto - custo;
+        const iof = rend > 0 ? rend * iofPct(dias) : 0;
+        const aliq = aliquotaTesouro(dias);
+        const ir = rend - iof > 0 ? (rend - iof) * aliq : 0;
+        return { data: l.data, qtd: q, dias, custo, bruto, rend, iof, aliq, ir, liquido: bruto - iof - ir,
+                 data15: addDias(l.data, 721) };
+      });
+      const s = (k) => lotes.reduce((t, x) => t + x[k], 0);
+      out.tesouro.push({ ticker: p.ticker, pu, lotes, bruto: s('bruto'), custo: s('custo'), lucro: s('rend'),
+                         iof: s('iof'), ir: s('ir'), liquido: s('liquido') });
+    }
+
+    // Cripto
+    for (const p of comQtd.filter((p) => p.classe_ir === 'cripto')) {
+      if (p.preco == null) { out.avisos.push(`${p.ticker}: sem cotação, fora da simulação`); continue; }
+      const lucro = p.valor - p.custo;
+      let ir = 0, regra;
+      if (opts.btcRegime === 'exterior') {
+        ir = Math.max(0, lucro) * REGRAS_IR.criptoExterior.aliquota;
+        regra = 'Exterior: 15% sobre o lucro, na declaração anual';
+      } else if (p.valor <= REGRAS_IR.criptoNacional.isencaoVendasMes) {
+        regra = `Isento: vendas no mês até ${REGRAS_IR.criptoNacional.isencaoVendasMes.toLocaleString('pt-BR')} reais`;
+      } else {
+        ir = lucro > 0 ? irProgressivo(lucro) : 0;
+        regra = 'Vendas acima de R$ 35 mil no mês: 15% sobre o lucro (faixas maiores acima de R$ 5 milhões)';
+      }
+      out.cripto.push({ ticker: p.ticker, bruto: p.valor, custo: p.custo, lucro, ir, liquido: p.valor - ir, regra });
+      if (ir > 0.005 && opts.btcRegime !== 'exterior')
+        out.darfs.push({ codigo: REGRAS_IR.criptoNacional.darf, desc: `${p.ticker} (ganho de capital)`, valor: ir, vencimento: vencimentoDarf(hoje) });
+      if (ir > 0.005 && opts.btcRegime === 'exterior')
+        out.darfs.push({ codigo: 'DIRPF', desc: `${p.ticker} (exterior, declaração anual)`, valor: ir, vencimento: `${Number(hoje.slice(0, 4)) + 1}-05-31` });
+    }
+
+    const todos = [...out.rv, ...out.tesouro, ...out.cripto];
+    out.total = {
+      bruto: todos.reduce((s, x) => s + x.bruto, 0),
+      custo: todos.reduce((s, x) => s + x.custo, 0),
+      ir: irRv + out.tesouro.reduce((s, x) => s + x.ir + x.iof, 0) + out.cripto.reduce((s, x) => s + x.ir, 0),
+    };
+    out.total.lucro = out.total.bruto - out.total.custo;
+    out.total.liquido = out.total.bruto - out.total.ir;
+    return out;
+  }
+
   const api = { arredondaQtd, unidadeMinima, posicao, sugerirCarteira, sugerirBtc, periodosDecorridos,
-                lerPlanilha, agruparEmAportes, serialParaISO, r2 };
+                lerPlanilha, agruparEmAportes, serialParaISO, r2,
+                projecaoIR, vencimentoDarf, aliquotaTesouro, iofPct, irProgressivo, REGRAS_IR };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Calc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

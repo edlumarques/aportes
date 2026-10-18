@@ -205,7 +205,7 @@ async function iniciar(){
 }
 
 // ---------- casca ----------
-const TABS = [['painel','Painel'],['aporte','Novo aporte'],['lanc','Lançamentos'],['estrat','Estratégia'],['importar','Importar'],['convites','Convites']];
+const TABS = [['painel','Painel'],['aporte','Novo aporte'],['lanc','Lançamentos'],['estrat','Estratégia'],['ir','IR'],['importar','Importar'],['convites','Convites']];
 function render(){
   const tabs = TABS.filter(([k]) => k !== 'convites' || S.perfil?.is_admin);
   $('#app').innerHTML = `<header><div class="bar"><div class="brand"><i></i> Aportes</div>
@@ -214,7 +214,7 @@ function render(){
     <main id="main"></main>`;
   $('#sair').onclick = () => sb.auth.signOut();
   $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); window.scrollTo(0,0); });
-  ({ painel:vPainel, aporte:vAporte, lanc:vLanc, estrat:vEstrat, importar:vImportar, convites:vConvites })[S.tab]();
+  ({ painel:vPainel, aporte:vAporte, lanc:vLanc, estrat:vEstrat, ir:vIR, importar:vImportar, convites:vConvites })[S.tab]();
 }
 async function recarregar(){ await carregar(); render(); }
 
@@ -308,6 +308,47 @@ async function buscarBtc(){
     await q(sb.from('cotacoes').insert({ user_id:S.user.id, ativo_id:a.id, preco:p, origem:'api' }));
     toast('BTC atualizado: ' + brl(p)); recarregar();
   } catch(e){ toast('Não foi possível buscar o BTC agora. Digite o preço manualmente. ('+erroMsg(e)+')', true); }
+}
+
+// ---------- projeção de IR ----------
+function vIR(){
+  const e = S.est || {};
+  const pos = Calc.posicao(S.ativos, S.lancs, S.cot);
+  const prej = S.prejRv || 0;
+  const r = Calc.projecaoIR(pos, S.lancs, S.cot, { hoje:hojeISO(), btcRegime:e.btc_regime||'nacional', prejuizoRv:prej });
+  const rv = r.resumoRv;
+  const lin = (x, extra='') => `<tr><td class="tick">${esc(x.ticker)}</td><td class="n">${brl(x.bruto)}</td><td class="n">${brl(x.custo)}</td><td class="n ${sinal(x.lucro)}">${brl(x.lucro)}</td>${extra}<td class="n">${brl(x.ir)}</td><td class="n">${brl(x.liquido)}</td></tr>`;
+  const tesLotes = r.tesouro.map(t => `<details style="margin-top:10px"><summary class="small" style="cursor:pointer">${esc(t.ticker)}: ver as ${t.lotes.length} compras (PU de venda ${brl(t.pu)})</summary><div class="tbl"><table>
+      <thead><tr><th>Compra</th><th class="n">Qtd</th><th class="n">Dias</th><th class="n">Rendimento</th><th class="n">IOF</th><th class="n">Alíquota</th><th class="n">IR</th><th>Cai para 15% em</th></tr></thead>
+      <tbody>${t.lotes.map(l => `<tr><td>${dataBR(l.data)}</td><td class="n">${nf(l.qtd,2)}</td><td class="n">${l.dias}</td><td class="n ${sinal(l.rend)}">${brl(l.rend)}</td><td class="n">${brl(l.iof)}</td><td class="n">${pct(l.aliq,1)}</td><td class="n">${brl(l.ir)}</td><td>${l.aliq<=0.15?'já está em 15%':dataBR(l.data15)}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+  $('#main').innerHTML = `<h1>Projeção de IR em caso de venda total</h1>
+    <p class="sub">Se você vendesse tudo hoje (${dataBR(hojeISO())}), pelas cotações salvas no Painel. É uma estimativa para planejamento, não substitui o cálculo do contador.</p>
+    ${r.avisos.length?`<div class="note">${r.avisos.map(esc).join('<br>')}</div>`:''}
+    <div class="kpis">
+      <div class="kpi"><div class="l">Valor bruto da venda</div><div class="v">${brl(r.total.bruto)}</div><div class="d">Custo ${brl(r.total.custo)}</div></div>
+      <div class="kpi"><div class="l">Lucro</div><div class="v ${sinal(r.total.lucro)}">${brl(r.total.lucro)}</div><div class="d">${r.total.custo>0?pct(r.total.lucro/r.total.custo,2):'—'}</div></div>
+      <div class="kpi"><div class="l">IR + IOF estimado</div><div class="v">${brl(r.total.ir)}</div><div class="d">${r.total.lucro>0?pct(r.total.ir/r.total.lucro,1)+' do lucro':'—'}</div></div>
+      <div class="kpi"><div class="l">Líquido no bolso</div><div class="v">${brl(r.total.liquido)}</div><div class="d ${sinal(r.total.liquido-r.total.custo)}">${brl(r.total.liquido-r.total.custo)} sobre o custo</div></div>
+    </div>
+    ${r.rv.length?`<div class="card"><h2>ETFs — 15% sobre o lucro, sem isenção</h2>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Venda</th><th class="n">Custo</th><th class="n">Lucro</th><th class="n">IR</th><th class="n">Líquido</th></tr></thead>
+      <tbody>${r.rv.map(x=>lin(x)).join('')}</tbody></table></div>
+      <p class="small" style="margin:10px 0 0">Lucro somado dos ETFs ${brl(rv.lucro)}${rv.prejuizoUsado>0?` − prejuízo compensado ${brl(rv.prejuizoUsado)}`:''} = base ${brl(rv.base)} × 15% = <b>${brl(rv.ir)}</b>. O prejuízo de um ETF abate o lucro dos outros no mesmo mês.${rv.prejuizoSobra>0?` Sobra ${brl(rv.prejuizoSobra)} de prejuízo para compensar no futuro.`:''}</p>
+      <div class="row" style="margin-top:10px"><label for="prej" style="margin:0">Prejuízo acumulado de meses anteriores (R$)</label><input id="prej" inputmode="decimal" style="width:140px" value="${prej?nf(prej,2):''}" placeholder="0,00"></div></div>`:''}
+    ${r.tesouro.length?`<div class="card"><h2>Tesouro — tabela regressiva, retido na fonte</h2>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Venda (PU venda)</th><th class="n">Custo</th><th class="n">Rendimento</th><th class="n">IOF</th><th class="n">IR</th><th class="n">Líquido</th></tr></thead>
+      <tbody>${r.tesouro.map(t=>lin(t, `<td class="n">${brl(t.iof)}</td>`)).join('')}</tbody></table></div>
+      <p class="small" style="margin:10px 0 0">Cada compra tem a própria alíquota: 22,5% até 180 dias, 20% até 360, 17,5% até 720 e 15% depois. IOF só nos primeiros 30 dias. Rendimento negativo não gera imposto.</p>${tesLotes}</div>`:''}
+    ${r.cripto.length?`<div class="card"><h2>Bitcoin — corretora ${e.btc_regime==='exterior'?'no exterior':'brasileira'}</h2>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Venda</th><th class="n">Custo</th><th class="n">Lucro</th><th class="n">IR</th><th class="n">Líquido</th></tr></thead>
+      <tbody>${r.cripto.map(x=>lin(x)).join('')}</tbody></table></div>
+      <p class="small" style="margin:10px 0 0">${r.cripto.map(x=>esc(x.regra)).join('<br>')}${e.btc_regime!=='exterior'?'. O limite de R$ 35 mil soma as vendas do mês em todas as corretoras brasileiras e em carteira própria.':''} Para mudar a corretora, vá em Estratégia.</p></div>`:''}
+    <div class="card"><h2>O que pagar e quando</h2>
+      ${r.darfs.length?`<div class="tbl"><table><thead><tr><th>Código</th><th>Referente a</th><th class="n">Valor</th><th>Vencimento</th></tr></thead>
+      <tbody>${r.darfs.map(d=>`<tr><td class="tick">${esc(d.codigo)}</td><td>${esc(d.desc)}</td><td class="n">${brl(d.valor)}</td><td>${d.codigo==='DIRPF'?'Declaração de '+d.vencimento.slice(0,4):dataBR(d.vencimento)}</td></tr>`).join('')}</tbody></table></div>`
+      :'<p class="muted" style="margin:0">Nenhum DARF a pagar nesta simulação.</p>'}
+      <p class="small" style="margin:10px 0 0">DARF vence no último dia útil do mês seguinte à venda (feriados não considerados). O IR do Tesouro é retido na fonte pela corretora e não entra aqui.</p></div>`;
+  const pj = $('#prej'); if (pj) pj.onchange = () => { S.prejRv = parseNum(pj.value) || 0; vIR(); };
 }
 
 // ---------- novo aporte ----------
