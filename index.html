@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aportes</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f766e'/><path d='M8 22l6-6 4 4 7-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+:root{
+  --bg:#f6f7f5; --card:#ffffff; --ink:#1b1f1d; --muted:#66706b; --line:#e3e6e2;
+  --accent:#0f766e; --accent-ink:#ffffff; --accent-soft:#e3f1ef;
+  --pos:#15803d; --neg:#b42318; --warn:#a15c07; --warn-soft:#fdf3e2;
+  --radius:12px; --shadow:0 1px 2px rgba(16,24,20,.06),0 4px 16px rgba(16,24,20,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111413; --card:#1a1e1c; --ink:#e8ece9; --muted:#9aa49f; --line:#2b312e;
+    --accent:#2dd4bf; --accent-ink:#06201d; --accent-soft:#163430;
+    --pos:#4ade80; --neg:#f87171; --warn:#fbbf24; --warn-soft:#2e2510;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111413; --card:#1a1e1c; --ink:#e8ece9; --muted:#9aa49f; --line:#2b312e;
+  --accent:#2dd4bf; --accent-ink:#06201d; --accent-soft:#163430;
+  --pos:#4ade80; --neg:#f87171; --warn:#fbbf24; --warn-soft:#2e2510; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.num,td.n,th.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+a{color:var(--accent)}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line)}
+.bar{max-width:1120px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.brand{font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:22px;height:22px;border-radius:6px;background:var(--accent);display:inline-block}
+.who{margin-left:auto;color:var(--muted);font-size:13px;display:flex;gap:10px;align-items:center;min-width:0}
+.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav{max-width:1120px;margin:0 auto;padding:0 8px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav button{border:0;background:none;color:var(--muted);padding:10px 12px;font:inherit;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+main{max-width:1120px;margin:0 auto;padding:20px 16px 64px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:16px;margin:0 0 12px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi .l{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em}
+.kpi .v{font-size:22px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:13px;color:var(--muted);margin-top:2px}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.tbl{width:100%;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-weight:600;color:var(--muted);font-size:12.5px;text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tfoot td{font-weight:650;border-top:1px solid var(--line)}
+.tick{font-weight:650}
+.tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.small{font-size:12.5px;color:var(--muted)}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+input.cell{padding:5px 7px;width:110px;text-align:right;font-variant-numeric:tabular-nums}
+input.cell.w{width:80px}
+input[type=checkbox]{width:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-weight:600;border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.link{border:0;background:none;color:var(--accent);padding:4px 6px}
+.btn.danger{color:var(--neg)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.sm{padding:5px 9px;font-size:13px}
+.note{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.ok{background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.progress{height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.progress>i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.alloc{display:grid;grid-template-columns:76px 1fr 120px;gap:6px 12px;align-items:center;font-size:13.5px}
+.alloc .track{position:relative;height:14px;background:var(--line);border-radius:4px}
+.alloc .now{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:4px;opacity:.85}
+.alloc .goal{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.auth{max-width:380px;margin:8vh auto;padding:0 16px}
+.auth .card{padding:24px}
+.auth h1{margin-bottom:16px}
+.stack>*+*{margin-top:12px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100% - 32px);z-index:20}
+#toast.show{opacity:1}
+#toast.err{background:var(--neg);color:#fff}
+.muted{color:var(--muted)}
+@media (max-width:640px){ .kpi .v{font-size:19px} .alloc{grid-template-columns:64px 1fr 96px} }
+</style>
+</head>
+<body>
+<div id="app"><div class="auth"><p class="muted">Carregando…</p></div></div>
+<div id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script src="calc.js"></script>
+<script>
+'use strict';
+// ====== Configuração do projeto Supabase (chave pública: pode ficar no site) ======
+const SUPABASE_URL = 'https://atpmyalgavwjedqeostj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0Q3f8CHjTKziFDxJEdK0Tg_ISvh0hwv';
+const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const S = { user:null, perfil:null, est:null, ativos:[], lancs:[], aportes:[], cot:{}, convites:[],
+            tab:'painel', sug:null, editLanc:null, filtro:'', imp:null, recovery:false };
+
+// ---------- utilidades ----------
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const BRL = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const brl = (v) => v == null || isNaN(v) ? '—' : BRL.format(v);
+const nf = (v, d=2, max) => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d, maximumFractionDigits:max ?? d});
+const pct = (v, d=1) => v == null || isNaN(v) ? '—' : (v*100).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}) + '%';
+const sinal = (v) => v == null ? '' : v > 0.00001 ? 'pos' : v < -0.00001 ? 'neg' : '';
+const parseNum = (s) => { if (s == null) return NaN; s = String(s).trim(); if (!s) return NaN;
+  if (s.includes(',')) s = s.replace(/\./g,'').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g,'');
+  return Number(s); };
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const dataBR = (iso) => iso ? iso.slice(0,10).split('-').reverse().join('/') : '—';
+const qtdFmt = (a, q) => a.fracao === 'livre' ? nf(q, 8) : a.fracao === 'centesimo' ? nf(q, 2) : nf(q, 0);
+function toast(msg, err=false){ const t=$('#toast'); t.textContent=msg; t.className='show'+(err?' err':''); clearTimeout(t._h); t._h=setTimeout(()=>t.className='', err?6000:3000); }
+function erroMsg(e){ const m = e?.message || String(e);
+  if (/Database error saving new user|somente com convite/i.test(m)) return 'Este e-mail não tem convite. Peça um convite ao administrador.';
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/Email not confirmed/i.test(m)) return 'Confirme seu e-mail pelo link enviado antes de entrar.';
+  if (/Password should be at least/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  return m; }
+async function q(promise){ const { data, error } = await promise; if (error) throw error; return data; }
+function loadScript(src){ return new Promise((ok, no) => { const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>no(new Error('Falha ao carregar '+src)); document.head.appendChild(s); }); }
+
+// ---------- autenticação ----------
+function renderAuth(mode='login'){
+  const t = { login:'Entrar', cadastro:'Criar conta', esqueci:'Recuperar senha', nova:'Nova senha' }[mode];
+  $('#app').innerHTML = `<div class="auth"><div class="card stack">
+    <div class="brand"><i></i> Aportes</div>
+    <h1>${t}</h1>
+    ${mode==='cadastro' ? '<p class="small">O cadastro é só por convite. Use o e-mail que recebeu o convite.</p>':''}
+    ${mode==='esqueci' ? '<p class="small">Enviaremos um link para você criar uma nova senha.</p>':''}
+    <form id="fa" class="stack">
+      ${mode!=='nova' ? '<div><label for="em">E-mail</label><input id="em" type="email" autocomplete="email" required></div>':''}
+      ${mode!=='esqueci' ? `<div><label for="pw">${mode==='nova'?'Nova senha':'Senha'}</label><input id="pw" type="password" minlength="6" autocomplete="${mode==='login'?'current-password':'new-password'}" required></div>`:''}
+      <button class="btn primary" style="width:100%">${t}</button>
+    </form>
+    <div class="row" style="justify-content:space-between">
+      ${mode==='login' ? '<button class="btn link" data-m="cadastro">Tenho convite</button><button class="btn link" data-m="esqueci">Esqueci a senha</button>'
+                       : mode==='nova' ? '' : '<button class="btn link" data-m="login">Voltar para entrar</button>'}
+    </div></div></div>`;
+  $$('[data-m]').forEach(b => b.onclick = () => renderAuth(b.dataset.m));
+  $('#fa').onsubmit = async (ev) => {
+    ev.preventDefault(); const btn = $('#fa button'); btn.disabled = true;
+    const email = $('#em')?.value.trim().toLowerCase(), password = $('#pw')?.value;
+    const redirect = location.origin + location.pathname;
+    try {
+      if (mode==='login') await q(sb.auth.signInWithPassword({ email, password }));
+      if (mode==='cadastro') { const d = await q(sb.auth.signUp({ email, password, options:{ emailRedirectTo: redirect } }));
+        if (!d.session) { toast('Conta criada. Confirme pelo link enviado ao seu e-mail.'); renderAuth('login'); } }
+      if (mode==='esqueci') { await q(sb.auth.resetPasswordForEmail(email, { redirectTo: redirect })); toast('Link enviado. Confira seu e-mail.'); renderAuth('login'); }
+      if (mode==='nova') { await q(sb.auth.updateUser({ password })); S.recovery=false; toast('Senha alterada.'); iniciar(); }
+    } catch(e){ toast(erroMsg(e), true); btn.disabled = false; }
+  };
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') { S.recovery = true; renderAuth('nova'); return; }
+  if (S.recovery) return;
+  const novo = session?.user || null;
+  if (event === 'SIGNED_OUT' || !novo) { S.user = null; renderAuth('login'); return; }
+  if (!S.user || S.user.id !== novo.id) { S.user = novo; setTimeout(iniciar, 0); }
+});
+
+// ---------- dados ----------
+async function buscarTodos(tabela, ordem){
+  const out = []; const passo = 1000;
+  for (let i = 0; ; i += passo) {
+    const d = await q(sb.from(tabela).select('*').order(ordem, { ascending:true }).order('id',{ascending:true}).range(i, i+passo-1));
+    out.push(...d); if (d.length < passo) return out;
+  }
+}
+async function carregar(){
+  const uid = S.user.id;
+  const [perfil, est, ativos] = await Promise.all([
+    q(sb.from('perfis').select('*').eq('id', uid).maybeSingle()),
+    q(sb.from('estrategia').select('*').eq('user_id', uid).maybeSingle()),
+    q(sb.from('ativos').select('*').order('ordem').order('id')),
+  ]);
+  S.perfil = perfil; S.est = est; S.ativos = ativos; S._ativosEd = null;
+  const [lancs, aportes] = await Promise.all([buscarTodos('lancamentos','data'), buscarTodos('aportes','data')]);
+  S.lancs = lancs; S.aportes = aportes;
+  const cots = await Promise.all(ativos.map(a => q(sb.from('cotacoes').select('*').eq('ativo_id', a.id).order('data',{ascending:false}).limit(1))));
+  S.cot = {}; ativos.forEach((a,i) => { if (cots[i][0]) S.cot[a.id] = cots[i][0]; });
+  if (S.perfil?.is_admin) S.convites = await q(sb.from('convites').select('*').order('criado_em',{ascending:false}));
+}
+async function iniciar(){
+  try { await carregar(); } catch(e){ $('#app').innerHTML = `<div class="auth"><div class="card"><h1>Erro ao carregar</h1><p>${esc(erroMsg(e))}</p><p class="small">Se é a primeira vez, confira se o script SQL foi executado no Supabase.</p><button class="btn" id="sair">Sair</button></div></div>`; $('#sair').onclick=()=>sb.auth.signOut(); return; }
+  if (!S.est) { try { await q(sb.from('estrategia').insert({ user_id:S.user.id })); } catch(e) {} await carregar(); }
+  render();
+}
+
+// ---------- casca ----------
+const TABS = [['painel','Painel'],['aporte','Novo aporte'],['lanc','Lançamentos'],['estrat','Estratégia'],['importar','Importar'],['convites','Convites']];
+function render(){
+  const tabs = TABS.filter(([k]) => k !== 'convites' || S.perfil?.is_admin);
+  $('#app').innerHTML = `<header><div class="bar"><div class="brand"><i></i> Aportes</div>
+      <div class="who"><span>${esc(S.user.email)}</span><button class="btn sm" id="sair">Sair</button></div></div>
+      <nav>${tabs.map(([k,l]) => `<button data-tab="${k}" ${S.tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav></header>
+    <main id="main"></main>`;
+  $('#sair').onclick = () => sb.auth.signOut();
+  $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); window.scrollTo(0,0); });
+  ({ painel:vPainel, aporte:vAporte, lanc:vLanc, estrat:vEstrat, importar:vImportar, convites:vConvites })[S.tab]();
+}
+async function recarregar(){ await carregar(); render(); }
+
+// ---------- painel ----------
+function vPainel(){
+  const pos = Calc.posicao(S.ativos, S.lancs, S.cot).filter(p => p.ativo || p.qtd > 0);
+  const btc = pos.filter(p => p.papel === 'btc'), cart = pos.filter(p => p.papel === 'carteira');
+  const soma = (arr, k) => arr.reduce((s,p) => s + (p[k] || 0), 0);
+  const valCart = soma(cart,'valor'), valBtc = soma(btc,'valor'), patrimonio = valCart + valBtc;
+  const aplicado = soma(pos,'custo'), res = patrimonio - aplicado;
+  const semPreco = pos.filter(p => p.qtd > 0 && p.preco == null);
+  const e = S.est || {};
+  const regulares = S.aportes.filter(a => a.tipo === 'regular');
+  const inicio = e.data_inicio || (S.aportes[0]?.data) || (S.lancs[0]?.data) || null;
+  const periodos = Calc.periodosDecorridos(inicio, hojeISO(), e.periodicidade, regulares.length);
+  const porPeriodo = Number(e.valor_btc||0) + Number(e.valor_carteira||0);
+  const previsto = periodos * porPeriodo;
+  const metaPct = e.meta_valor > 0 ? aplicado / e.meta_valor : 0;
+
+  const linha = (p, comPeso) => {
+    const atualPct = comPeso && valCart > 0 && p.valor != null ? p.valor / valCart : null;
+    const desvio = atualPct != null ? atualPct - Number(p.peso) : null;
+    const tes = p.tipo === 'tesouro';
+    return `<tr>
+      <td><span class="tick">${esc(p.ticker)}</span>${!p.ativo?' <span class="tag warn">inativo</span>':''}<div class="small">${esc(p.nome||'')}</div></td>
+      <td class="n">${qtdFmt(p, p.qtd)}</td>
+      <td class="n">${brl(p.pm)}</td>
+      <td class="n"><input class="cell" data-cot="${p.id}" inputmode="decimal" value="${p.preco!=null? nf(p.preco, 2, p.papel==='btc'?2:6):''}" placeholder="preço">
+        ${tes?`<div class="small" style="margin-top:3px">venda <input class="cell w" data-venda="${p.id}" inputmode="decimal" value="${p.cotacao?.preco_venda!=null?nf(p.cotacao.preco_venda,2):''}"></div>`:''}
+        <div class="small">${p.cotacao ? dataBR(p.cotacao.data)+' · '+p.cotacao.origem : 'sem cotação'}</div></td>
+      <td class="n">${brl(p.custo)}</td>
+      <td class="n">${brl(p.valor)}</td>
+      <td class="n ${sinal(p.resultado)}">${brl(p.resultado)}<div class="small ${sinal(p.resultado)}">${pct(p.resultadoPct,2)}</div></td>
+      ${comPeso?`<td class="n">${pct(atualPct)}</td><td class="n">${pct(Number(p.peso))}</td><td class="n ${desvio==null?'':desvio<0?'neg':'pos'}">${desvio==null?'—':(desvio>0?'+':'')+pct(desvio)}</td>`:''}
+    </tr>`;
+  };
+  const maxPct = Math.max(0.3, ...cart.map(p => Math.max(Number(p.peso), valCart>0&&p.valor? p.valor/valCart : 0)));
+
+  $('#main').innerHTML = `
+    <h1>Painel</h1><p class="sub">Posição atual, metas e cotações. Edite os preços e salve para atualizar.</p>
+    ${semPreco.length?`<div class="note">Sem cotação: ${semPreco.map(p=>esc(p.ticker)).join(', ')}. Informe o preço abaixo para calcular o valor atual.</div>`:''}
+    <div class="kpis">
+      <div class="kpi"><div class="l">Patrimônio</div><div class="v">${brl(patrimonio)}</div><div class="d">Carteira ${brl(valCart)} · BTC ${brl(valBtc)}</div></div>
+      <div class="kpi"><div class="l">Total aplicado</div><div class="v">${brl(aplicado)}</div><div class="d">${S.lancs.length} lançamentos em ${S.aportes.length} aportes</div></div>
+      <div class="kpi"><div class="l">Resultado</div><div class="v ${sinal(res)}">${brl(res)}</div><div class="d ${sinal(res)}">${aplicado>0?pct(res/aplicado,2):'—'}</div></div>
+      <div class="kpi"><div class="l">Aportado × previsto</div><div class="v">${brl(aplicado)}</div><div class="d">Previsto ${brl(previsto)} · ${e.periodicidade==='livre'?periodos+' aportes':'período '+periodos}</div></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Meta de aportes</h2><span class="small">${brl(aplicado)} de ${brl(e.meta_valor)} · ${pct(metaPct,2)}</span></div>
+      <div class="progress" style="margin-top:10px"><i style="width:${Math.min(100, metaPct*100).toFixed(2)}%"></i></div>
+      <p class="small" style="margin:8px 0 0">${periodos} de ${nf(e.meta_periodos,0)} períodos · ${brl(porPeriodo)} por período · o patrimônio final depende do rendimento.</p>
+    </div>
+    <div class="card"><h2>Carteira: distribuição atual × alvo</h2>
+      <div class="alloc">${cart.filter(p=>p.ativo).map(p => { const a = valCart>0&&p.valor? p.valor/valCart:0;
+        return `<div class="tick">${esc(p.ticker)}</div><div class="track" title="Atual ${pct(a)} · alvo ${pct(Number(p.peso))}"><span class="now" style="width:${(a/maxPct*100).toFixed(2)}%"></span><span class="goal" style="left:${(Number(p.peso)/maxPct*100).toFixed(2)}%"></span></div><div class="num">${pct(a)} <span class="muted">/ ${pct(Number(p.peso))}</span></div>`; }).join('')}</div>
+      <p class="small" style="margin:10px 0 0">Barra = participação atual · traço = alvo.</p>
+    </div>
+    <div class="card"><h2>Carteira</h2><div class="tbl"><table>
+      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th><th class="n">% atual</th><th class="n">% alvo</th><th class="n">Desvio</th></tr></thead>
+      <tbody>${cart.map(p=>linha(p,true)).join('') || '<tr><td colspan="10" class="muted">Nenhum ativo na carteira.</td></tr>'}</tbody>
+      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td class="n">${brl(soma(cart,'custo'))}</td><td class="n">${brl(valCart)}</td><td class="n ${sinal(valCart-soma(cart,'custo'))}">${brl(valCart-soma(cart,'custo'))}</td><td class="n">100%</td><td></td><td></td></tr></tfoot>
+    </table></div></div>
+    ${btc.length?`<div class="card"><h2>Bitcoin (aplicação fixa, fora das proporções)</h2><div class="tbl"><table>
+      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th></tr></thead>
+      <tbody>${btc.map(p=>linha(p,false)).join('')}</tbody></table></div></div>`:''}
+    <div class="row"><button class="btn primary" id="salvaCot">Salvar cotações</button>${btc.length?'<button class="btn" id="btcApi">Buscar cotação do BTC</button>':''}</div>`;
+
+  $('#salvaCot').onclick = salvarCotacoes;
+  if ($('#btcApi')) $('#btcApi').onclick = buscarBtc;
+}
+async function salvarCotacoes(){
+  const novas = [];
+  for (const inp of $$('[data-cot]')) {
+    const id = Number(inp.dataset.cot), v = parseNum(inp.value);
+    const vendaInp = $(`[data-venda="${id}"]`); const venda = vendaInp ? parseNum(vendaInp.value) : NaN;
+    const atual = S.cot[id];
+    if (!(v > 0)) continue;
+    const mudouPreco = !atual || Math.abs(Number(atual.preco) - v) > 1e-9;
+    const mudouVenda = vendaInp && (venda > 0) && (!atual || Math.abs(Number(atual.preco_venda||0) - venda) > 1e-9);
+    if (mudouPreco || mudouVenda) novas.push({ user_id:S.user.id, ativo_id:id, preco:v, preco_venda: venda>0? venda : (atual?.preco_venda ?? null), origem:'manual' });
+  }
+  if (!novas.length) return toast('Nenhuma cotação alterada.');
+  try { await q(sb.from('cotacoes').insert(novas)); toast(`${novas.length} cotação(ões) salvas.`); recarregar(); }
+  catch(e){ toast(erroMsg(e), true); }
+}
+async function buscarBtc(){
+  const a = S.ativos.find(x => x.papel === 'btc'); if (!a) return;
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl');
+    const j = await r.json(); const p = j?.bitcoin?.brl; if (!(p > 0)) throw new Error('Resposta inválida da CoinGecko');
+    await q(sb.from('cotacoes').insert({ user_id:S.user.id, ativo_id:a.id, preco:p, origem:'api' }));
+    toast('BTC atualizado: ' + brl(p)); recarregar();
+  } catch(e){ toast('Não foi possível buscar o BTC agora. Digite o preço manualmente. ('+erroMsg(e)+')', true); }
+}
+
+// ---------- novo aporte ----------
+function vAporte(){
+  const e = S.est || {};
+  $('#main').innerHTML = `<h1>Novo aporte</h1><p class="sub">Calcule a sugestão, ajuste o que realmente comprou e registre.</p>
+    <div class="card"><form id="fs" class="grid">
+      <div><label>Data</label><input id="adata" type="date" value="${hojeISO()}" required></div>
+      <div><label>Tipo</label><select id="atipo"><option value="regular">Regular</option><option value="extra">Extra (avulso)</option></select></div>
+      <div><label>Valor BTC (R$)</label><input id="abtc" inputmode="decimal" value="${nf(e.valor_btc,2)}"></div>
+      <div><label>Valor carteira (R$)</label><input id="acart" inputmode="decimal" value="${nf(e.valor_carteira,2)}"></div>
+      <div><label>Regra</label><select id="amodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>
+      <div style="align-self:end"><button class="btn primary" style="width:100%">Calcular sugestão</button></div>
+    </form></div><div id="res"></div>`;
+  $('#atipo').onchange = (ev) => { if (ev.target.value==='extra') { $('#abtc').value = nf(0,2); } else { $('#abtc').value = nf(e.valor_btc,2); $('#acart').value = nf(e.valor_carteira,2); } };
+  $('#fs').onsubmit = (ev) => { ev.preventDefault(); calcularAporte(); };
+}
+function calcularAporte(){
+  const vb = parseNum($('#abtc').value) || 0, vc = parseNum($('#acart').value) || 0, modo = $('#amodo').value;
+  const pos = Calc.posicao(S.ativos, S.lancs, S.cot);
+  const cart = pos.filter(p => p.papel==='carteira' && p.ativo && Number(p.peso) > 0);
+  const faltam = cart.filter(p => !(p.preco > 0)).map(p => p.ticker);
+  const btcA = pos.find(p => p.papel==='btc' && p.ativo);
+  if (vb > 0 && btcA && !(btcA.preco > 0)) faltam.push(btcA.ticker);
+  if (faltam.length) { $('#res').innerHTML = `<div class="note">Informe a cotação de ${faltam.map(esc).join(', ')} no Painel antes de calcular.</div>`; return; }
+  const s = vc > 0 ? Calc.sugerirCarteira(cart, vc, modo) : { linhas:[], troco:0, totalAtual:0, totalProjetado:0, somaDeficit:0 };
+  const b = btcA && vb > 0 ? { ...btcA, ...Calc.sugerirBtc(vb, btcA.preco) } : null;
+  S.sug = { vb, vc, modo, s, b };
+  const linhas = s.linhas.map((l,i) => `<tr>
+      <td class="tick">${esc(l.ticker)}</td><td class="n">${brl(l.atual)}</td><td class="n">${brl(l.alvo)}</td><td class="n">${brl(l.deficit)}</td><td class="n">${brl(l.sugestao)}</td>
+      <td class="n"><input class="cell w" data-q="${i}" inputmode="decimal" value="${qtdFmt(l, l.qtd)}">${l.qtdTroco?`<div class="small">+${qtdFmt(l,l.qtdTroco)} do troco</div>`:''}</td>
+      <td class="n"><input class="cell" data-p="${i}" inputmode="decimal" value="${nf(l.preco,2,6)}"></td>
+      <td class="n" data-t="${i}">${brl(l.gasto)}</td></tr>`).join('');
+  $('#res').innerHTML = `
+    ${s.linhas.length?`<div class="card"><h2>Carteira — ${brl(vc)}</h2>
+      <p class="small" style="margin-top:-6px">Carteira atual ${brl(s.totalAtual)} + aporte = ${brl(s.totalProjetado)}. ${modo==='deficit'?`Déficits somam ${brl(s.somaDeficit)}; cada um recebe ${s.somaDeficit>0?pct(vc/s.somaDeficit):'—'} do seu valor.`:'Divisão direta pelos pesos.'}</p>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Atual</th><th class="n">Alvo</th><th class="n">Déficit</th><th class="n">Sugestão</th><th class="n">Qtd</th><th class="n">Preço pago</th><th class="n">Total</th></tr></thead>
+      <tbody>${linhas}</tbody><tfoot><tr><td colspan="7">Total das compras</td><td class="n" id="totC">${brl(s.gasto)}</td></tr>
+      <tr><td colspan="7">Troco (sobra do arredondamento)</td><td class="n" id="troco">${brl(s.troco)}</td></tr></tfoot></table></div></div>`:''}
+    ${b?`<div class="card"><h2>Bitcoin — ${brl(vb)}</h2><div class="grid">
+      <div><label>Valor pago (R$)</label><input id="bval" inputmode="decimal" value="${nf(vb,2)}"></div>
+      <div><label>BTC recebido</label><input id="bqtd" inputmode="decimal" value="${nf(b.qtd,8)}"></div>
+      <div><label>Cotação usada</label><input disabled value="${brl(b.preco)}"></div></div>
+      <p class="small" style="margin:8px 0 0">Ajuste o BTC recebido conforme a corretora (taxas e spread).</p></div>`:''}
+    <div class="row"><button class="btn primary" id="registrar">Registrar compras</button><span class="small">Registre depois de executar as compras na corretora.</span></div>`;
+  $$('[data-q],[data-p]').forEach(inp => inp.oninput = atualizarTotaisAporte);
+  $('#registrar').onclick = registrarAporte;
+}
+function atualizarTotaisAporte(){
+  const { s, vc } = S.sug; let tot = 0;
+  s.linhas.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value)||0, pv = parseNum($(`[data-p="${i}"]`).value)||0;
+    $(`[data-t="${i}"]`).textContent = brl(qv*pv); tot += qv*pv; });
+  $('#totC').textContent = brl(tot); const tr = vc - tot; $('#troco').textContent = brl(tr); $('#troco').className = 'n ' + (tr < -0.005 ? 'neg' : '');
+}
+async function registrarAporte(){
+  const { s, b, vb, vc } = S.sug; const data = $('#adata').value, tipo = $('#atipo').value;
+  const itens = [];
+  s.linhas.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value), pv = parseNum($(`[data-p="${i}"]`).value);
+    if (qv > 0 && pv > 0) itens.push({ ativo_id:l.id, quantidade:qv, preco:pv }); });
+  if (b) { const bv = parseNum($('#bval').value), bq = parseNum($('#bqtd').value);
+    if (bv > 0 && bq > 0) itens.push({ ativo_id:b.id, quantidade:bq, preco: bv/bq }); }
+  if (!itens.length) return toast('Nenhuma compra com quantidade e preço.', true);
+  const gastoCart = itens.filter(x => !b || x.ativo_id !== b.id).reduce((t,x) => t + x.quantidade*x.preco, 0);
+  const btn = $('#registrar'); btn.disabled = true;
+  try {
+    const ap = await q(sb.from('aportes').insert({ user_id:S.user.id, data, tipo, valor_btc: b ? (parseNum($('#bval').value)||0) : 0,
+      valor_carteira: vc, troco: Math.max(0, Math.round((vc - gastoCart)*100)/100) }).select().single());
+    await q(sb.from('lancamentos').insert(itens.map(x => ({ ...x, user_id:S.user.id, aporte_id:ap.id, data }))));
+    if (!S.est?.data_inicio && tipo==='regular' && !S.aportes.length) await q(sb.from('estrategia').update({ data_inicio:data }).eq('user_id', S.user.id));
+    toast(`Aporte registrado: ${itens.length} compra(s).`); S.tab = 'painel'; S.sug = null; recarregar();
+  } catch(e){ toast(erroMsg(e), true); btn.disabled = false; }
+}
+
+// ---------- lançamentos ----------
+function vLanc(){
+  const porId = Object.fromEntries(S.ativos.map(a => [a.id, a]));
+  const lista = S.lancs.filter(l => !S.filtro || String(l.ativo_id) === S.filtro).slice().sort((a,b) => a.data < b.data ? 1 : a.data > b.data ? -1 : b.id - a.id);
+  const ed = S.editLanc;
+  const tot = lista.reduce((s,l) => s + l.quantidade*l.preco + Number(l.taxas||0), 0);
+  $('#main').innerHTML = `<h1>Lançamentos</h1><p class="sub">Todas as compras registradas. Edite ou exclua quando precisar.</p>
+    <div class="card"><h2>${ed?'Editar lançamento':'Novo lançamento avulso'}</h2><form id="fl" class="grid">
+      <div><label>Data</label><input id="ldata" type="date" required value="${ed?.data||hojeISO()}"></div>
+      <div><label>Ativo</label><select id="lativo">${S.ativos.map(a => `<option value="${a.id}" ${ed?.ativo_id===a.id?'selected':''}>${esc(a.ticker)}</option>`).join('')}</select></div>
+      <div><label>Quantidade</label><input id="lqtd" inputmode="decimal" required value="${ed?nf(ed.quantidade,0,8):''}"></div>
+      <div><label>Preço unitário (R$)</label><input id="lpreco" inputmode="decimal" required value="${ed?nf(ed.preco,2,6):''}"></div>
+      <div><label>Taxas (R$)</label><input id="ltaxa" inputmode="decimal" value="${ed?nf(ed.taxas,2):''}"></div>
+      <div><label>Observação</label><input id="lobs" value="${esc(ed?.obs||'')}"></div>
+      <div class="row" style="align-self:end"><button class="btn primary">${ed?'Salvar':'Adicionar'}</button>${ed?'<button type="button" class="btn" id="lcanc">Cancelar</button>':''}</div>
+    </form></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div class="row"><select id="lfil" style="width:auto"><option value="">Todos os ativos</option>${S.ativos.map(a => `<option value="${a.id}" ${S.filtro===String(a.id)?'selected':''}>${esc(a.ticker)}</option>`).join('')}</select>
+      <span class="small">${lista.length} lançamentos · ${brl(tot)}</span></div>
+      <button class="btn sm" id="lcsv">Exportar CSV</button></div>
+      <div class="tbl"><table><thead><tr><th>Data</th><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço</th><th class="n">Taxas</th><th class="n">Total</th><th></th></tr></thead>
+      <tbody>${lista.map(l => { const a = porId[l.ativo_id] || {}; return `<tr><td>${dataBR(l.data)}</td><td class="tick">${esc(a.ticker||'?')}</td>
+        <td class="n">${qtdFmt(a, Number(l.quantidade))}</td><td class="n">${brl(Number(l.preco))}</td><td class="n">${brl(Number(l.taxas))}</td>
+        <td class="n">${brl(l.quantidade*l.preco + Number(l.taxas||0))}</td>
+        <td class="n"><button class="btn link sm" data-ed="${l.id}">Editar</button><button class="btn link sm danger" data-del="${l.id}">Excluir</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="muted">Nenhum lançamento.</td></tr>'}</tbody></table></div></div>`;
+  $('#lfil').onchange = (ev) => { S.filtro = ev.target.value; vLanc(); };
+  if ($('#lcanc')) $('#lcanc').onclick = () => { S.editLanc = null; vLanc(); };
+  $$('[data-ed]').forEach(b => b.onclick = () => { S.editLanc = S.lancs.find(l => l.id === Number(b.dataset.ed)); vLanc(); window.scrollTo(0,0); });
+  $$('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Excluir este lançamento?')) return;
+    try { await q(sb.from('lancamentos').delete().eq('id', Number(b.dataset.del))); toast('Lançamento excluído.'); recarregar(); } catch(e){ toast(erroMsg(e), true); } });
+  $('#lcsv').onclick = () => exportarCSV(lista, porId);
+  $('#fl').onsubmit = async (ev) => { ev.preventDefault();
+    const row = { data:$('#ldata').value, ativo_id:Number($('#lativo').value), quantidade:parseNum($('#lqtd').value), preco:parseNum($('#lpreco').value), taxas:parseNum($('#ltaxa').value)||0, obs:$('#lobs').value||null };
+    if (!(row.quantidade > 0) || !(row.preco > 0)) return toast('Informe quantidade e preço válidos.', true);
+    try { if (ed) await q(sb.from('lancamentos').update(row).eq('id', ed.id)); else await q(sb.from('lancamentos').insert({ ...row, user_id:S.user.id }));
+      toast(ed ? 'Lançamento atualizado.' : 'Lançamento adicionado.'); S.editLanc = null; recarregar(); } catch(e){ toast(erroMsg(e), true); } };
+}
+function exportarCSV(lista, porId){
+  const linhas = [['data','ativo','quantidade','preco','taxas','total','obs'].join(';')].concat(lista.map(l => [l.data, porId[l.ativo_id]?.ticker, String(l.quantidade).replace('.',','), String(l.preco).replace('.',','), String(l.taxas||0).replace('.',','), (l.quantidade*l.preco+Number(l.taxas||0)).toFixed(2).replace('.',','), (l.obs||'').replace(/;/g,',')].join(';')));
+  const blob = new Blob(['﻿' + linhas.join('\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lancamentos.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- estratégia ----------
+function vEstrat(){
+  const e = S.est || {};
+  const linhaAtivo = (a, i) => `<tr data-row="${i}" data-id="${a.id||''}">
+    <td><input class="cell w" data-k="ticker" value="${esc(a.ticker||'')}" style="text-align:left;text-transform:uppercase"></td>
+    <td><input data-k="nome" value="${esc(a.nome||'')}" style="min-width:140px"></td>
+    <td><select data-k="tipo">${['etf','tesouro','cripto','acao','fii','outro'].map(t=>`<option ${a.tipo===t?'selected':''} value="${t}">${{etf:'ETF',tesouro:'Tesouro',cripto:'Cripto',acao:'Ação',fii:'FII',outro:'Outro'}[t]}</option>`).join('')}</select></td>
+    <td><select data-k="papel"><option value="carteira" ${a.papel!=='btc'?'selected':''}>Carteira</option><option value="btc" ${a.papel==='btc'?'selected':''}>Fixo (BTC)</option></select></td>
+    <td class="n"><input class="cell w" data-k="peso" inputmode="decimal" value="${a.papel==='btc'?'':nf(Number(a.peso||0)*100,0,4)}" ${a.papel==='btc'?'disabled':''}></td>
+    <td><select data-k="fracao"><option value="inteira" ${a.fracao==='inteira'?'selected':''}>Inteira</option><option value="centesimo" ${a.fracao==='centesimo'?'selected':''}>0,01</option><option value="livre" ${a.fracao==='livre'?'selected':''}>Livre</option></select></td>
+    <td><select data-k="classe_ir"><option value="rv15" ${a.classe_ir==='rv15'?'selected':''}>RV 15%</option><option value="tesouro" ${a.classe_ir==='tesouro'?'selected':''}>Tesouro</option><option value="cripto" ${a.classe_ir==='cripto'?'selected':''}>Cripto</option></select></td>
+    <td style="text-align:center"><input type="checkbox" data-k="ativo" ${a.ativo!==false?'checked':''}></td>
+    <td><button type="button" class="btn link sm danger" data-rm="${i}">Remover</button></td></tr>`;
+  S._ativosEd = S._ativosEd || S.ativos.map(a => ({...a}));
+  const somaPesos = () => S._ativosEd.filter(a => a.papel==='carteira' && a.ativo!==false).reduce((s,a) => s + Number(a.peso||0), 0);
+  $('#main').innerHTML = `<h1>Estratégia</h1><p class="sub">Valores fixos, periodicidade, meta e os ativos com seus pesos-alvo.</p>
+    <div class="card"><h2>Aporte e meta</h2><div class="grid">
+      <div><label>Valor fixo BTC (R$)</label><input id="ebtc" inputmode="decimal" value="${nf(e.valor_btc,2)}"></div>
+      <div><label>Valor fixo carteira (R$)</label><input id="ecart" inputmode="decimal" value="${nf(e.valor_carteira,2)}"></div>
+      <div><label>Periodicidade</label><select id="eper">${['semanal','quinzenal','mensal','livre'].map(p=>`<option ${e.periodicidade===p?'selected':''} value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
+      <div><label>Regra de cálculo</label><select id="emodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>
+      <div><label>Meta de aportes (R$)</label><input id="emeta" inputmode="decimal" value="${nf(e.meta_valor,2)}"></div>
+      <div><label>Prazo (períodos)</label><input id="eprazo" inputmode="numeric" value="${e.meta_periodos??''}"></div>
+      <div><label>Data de início</label><input id="eini" type="date" value="${e.data_inicio||''}"></div>
+      <div><label>Corretora do BTC (para IR)</label><select id="ereg"><option value="nacional" ${e.btc_regime!=='exterior'?'selected':''}>Brasileira</option><option value="exterior" ${e.btc_regime==='exterior'?'selected':''}>No exterior</option></select></div>
+    </div></div>
+    <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Ativos</h2><span id="psum" class="tag"></span></div>
+      <p class="small">Peso em % só para ativos da carteira; precisa somar 100%. O BTC é aplicação fixa e fica fora das proporções. Para parar de aportar num ativo sem perder o histórico, desmarque "Ativo".</p>
+      <div class="tbl"><table><thead><tr><th>Ticker</th><th>Nome</th><th>Tipo</th><th>Papel</th><th class="n">Peso %</th><th>Fração</th><th>IR</th><th>Ativo</th><th></th></tr></thead>
+      <tbody id="tbA">${S._ativosEd.map(linhaAtivo).join('')}</tbody></table></div>
+      <button type="button" class="btn sm" id="addA" style="margin-top:10px">+ Adicionar ativo</button></div>
+    <div class="row"><button class="btn primary" id="salvaE">Salvar estratégia</button><button class="btn" id="descE">Descartar alterações</button></div>`;
+  const atualizaSoma = () => { const s = somaPesos(); const t = $('#psum'); t.textContent = 'Soma dos pesos: ' + nf(s*100,1,4) + '%'; t.className = 'tag' + (Math.abs(s-1) > 0.0001 ? ' warn' : ''); };
+  atualizaSoma();
+  $('#tbA').oninput = $('#tbA').onchange = (ev) => { const tr = ev.target.closest('tr'); const i = Number(tr.dataset.row); const k = ev.target.dataset.k; if (!k) return;
+    const a = S._ativosEd[i]; let v = ev.target.type==='checkbox' ? ev.target.checked : ev.target.value;
+    if (k==='peso') v = (parseNum(v)||0)/100; if (k==='ticker') v = v.toUpperCase().trim();
+    a[k] = v; if (k==='papel' && ev.type==='change') { if (v==='btc') { a.peso = 0; a.fracao='livre'; a.tipo='cripto'; a.classe_ir='cripto'; } vEstrat(); return; }
+    atualizaSoma(); };
+  $$('[data-rm]').forEach(b => b.onclick = () => { const i = Number(b.dataset.rm); const a = S._ativosEd[i];
+    const n = a.id ? S.lancs.filter(l => l.ativo_id === a.id).length : 0;
+    if (n && !confirm(`${a.ticker} tem ${n} lançamento(s). Remover apaga também esses lançamentos e cotações. Para manter o histórico, cancele e desmarque "Ativo". Remover mesmo assim?`)) return;
+    S._ativosEd.splice(i,1); vEstrat(); });
+  $('#addA').onclick = () => { S._ativosEd.push({ ticker:'', nome:'', tipo:'etf', papel:'carteira', peso:0, fracao:'inteira', classe_ir:'rv15', ativo:true }); vEstrat(); };
+  $('#descE').onclick = () => { S._ativosEd = null; vEstrat(); };
+  $('#salvaE').onclick = salvarEstrategia;
+}
+async function salvarEstrategia(){
+  const ed = S._ativosEd;
+  const tickers = ed.map(a => a.ticker);
+  if (tickers.some(t => !t)) return toast('Todo ativo precisa de ticker.', true);
+  if (new Set(tickers).size !== tickers.length) return toast('Há tickers repetidos.', true);
+  const soma = ed.filter(a => a.papel==='carteira' && a.ativo!==false).reduce((s,a) => s + Number(a.peso||0), 0);
+  if (Math.abs(soma - 1) > 0.0001) return toast('Os pesos da carteira precisam somar 100% (hoje: ' + nf(soma*100,2) + '%).', true);
+  if (ed.filter(a => a.papel==='btc').length > 1) return toast('Use só um ativo como aplicação fixa (BTC).', true);
+  const est = { user_id:S.user.id, valor_btc:parseNum($('#ebtc').value)||0, valor_carteira:parseNum($('#ecart').value)||0, periodicidade:$('#eper').value,
+    modo_calculo:$('#emodo').value, meta_valor:parseNum($('#emeta').value)||0, meta_periodos:parseInt($('#eprazo').value)||0, data_inicio:$('#eini').value||null,
+    btc_regime:$('#ereg').value, atualizado_em:new Date().toISOString() };
+  try {
+    await q(sb.from('estrategia').upsert(est));
+    const manter = new Set(ed.filter(a => a.id).map(a => a.id));
+    const remover = S.ativos.filter(a => !manter.has(a.id)).map(a => a.id);
+    if (remover.length) await q(sb.from('ativos').delete().in('id', remover));
+    const campos = (a, i) => ({ ticker:a.ticker, nome:a.nome||null, tipo:a.tipo, papel:a.papel, peso:a.papel==='btc'?0:Number(a.peso||0), fracao:a.fracao, classe_ir:a.classe_ir, ativo:a.ativo!==false, ordem:i });
+    for (const [i,a] of ed.entries()) { if (a.id) await q(sb.from('ativos').update(campos(a,i)).eq('id', a.id)); }
+    const novos = ed.map((a,i) => [a,i]).filter(([a]) => !a.id).map(([a,i]) => ({ ...campos(a,i), user_id:S.user.id }));
+    if (novos.length) await q(sb.from('ativos').insert(novos));
+    S._ativosEd = null; toast('Estratégia salva.'); recarregar();
+  } catch(e){ toast(erroMsg(e), true); }
+}
+
+// ---------- importar planilha ----------
+function vImportar(){
+  $('#main').innerHTML = `<h1>Importar planilha</h1><p class="sub">Traz o histórico da planilha "simulação aportes" (uma aba por ativo) e as cotações salvas nela.</p>
+    <div class="card stack"><div><label for="arq">Arquivo .xlsx</label><input id="arq" type="file" accept=".xlsx,.xlsm,.xls"></div><div id="prev"></div></div>`;
+  $('#arq').onchange = lerArquivo;
+}
+async function lerArquivo(ev){
+  const f = ev.target.files[0]; if (!f) return;
+  $('#prev').innerHTML = '<p class="muted">Lendo…</p>';
+  try {
+    if (!window.XLSX) await loadScript(XLSX_URL);
+    const wb = XLSX.read(await f.arrayBuffer(), { type:'array', cellDates:false });
+    const r = Calc.lerPlanilha(XLSX, wb);
+    if (!r.lancamentos.length) { $('#prev').innerHTML = '<div class="note">Não encontrei lançamentos. A planilha precisa ter abas com as colunas semana, aporte, data e quantidade.</div>'; return; }
+    const grupos = Calc.agruparEmAportes(r.lancamentos);
+    const tickers = [...new Set(r.lancamentos.map(l => l.ticker))];
+    const novos = tickers.filter(t => !S.ativos.some(a => a.ticker === t));
+    const total = r.lancamentos.reduce((s,l) => s + l.valor, 0);
+    const porT = tickers.map(t => { const ls = r.lancamentos.filter(l => l.ticker===t); return [t, ls.length, ls.reduce((s,l)=>s+l.valor,0), ls.reduce((s,l)=>s+l.quantidade,0)]; });
+    S.imp = { r, grupos };
+    $('#prev').innerHTML = `<div class="ok">${r.lancamentos.length} lançamentos em ${grupos.length} aportes (${dataBR(grupos[0].data)} a ${dataBR(grupos[grupos.length-1].data)}) · total aplicado ${brl(total)}</div>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Lançamentos</th><th class="n">Quantidade</th><th class="n">Aplicado</th><th class="n">Cotação na planilha</th></tr></thead>
+      <tbody>${porT.map(([t,n,v,qq]) => { const c = r.cotacoes.find(c => c.ticker===t); return `<tr><td class="tick">${esc(t)}</td><td class="n">${n}</td><td class="n">${nf(qq,0,8)}</td><td class="n">${brl(v)}</td><td class="n">${c?brl(c.preco):'—'}</td></tr>`; }).join('')}</tbody></table></div>
+      ${novos.length?`<div class="note">Ativos que não estão na sua estratégia e serão criados com peso 0: ${novos.map(esc).join(', ')}.</div>`:''}
+      ${r.avisos.length?`<div class="note">${r.avisos.map(esc).join('<br>')}</div>`:''}
+      ${S.lancs.length?`<label class="row" style="color:var(--ink)"><input type="checkbox" id="limpar" checked> Apagar os ${S.lancs.length} lançamentos e aportes atuais antes de importar (evita duplicar)</label>`:''}
+      <label class="row" style="color:var(--ink)"><input type="checkbox" id="impcot" checked> Importar também as cotações salvas na planilha</label>
+      <button class="btn primary" id="imp">Importar</button>`;
+    $('#imp').onclick = importar;
+  } catch(e){ $('#prev').innerHTML = `<div class="note">Não consegui ler o arquivo: ${esc(erroMsg(e))}</div>`; }
+}
+async function importar(){
+  const { r, grupos } = S.imp; const uid = S.user.id; const btn = $('#imp'); btn.disabled = true; btn.textContent = 'Importando…';
+  try {
+    if ($('#limpar')?.checked) { await q(sb.from('lancamentos').delete().eq('user_id', uid)); await q(sb.from('aportes').delete().eq('user_id', uid)); }
+    const faltam = [...new Set(r.lancamentos.map(l => l.ticker))].filter(t => !S.ativos.some(a => a.ticker === t));
+    if (faltam.length) await q(sb.from('ativos').insert(faltam.map((t,i) => ({ user_id:uid, ticker:t, tipo: t==='BTC'?'cripto':t.startsWith('NTNB')?'tesouro':'etf', papel: t==='BTC'?'btc':'carteira',
+      peso:0, fracao: t==='BTC'?'livre':t.startsWith('NTNB')?'centesimo':'inteira', classe_ir: t==='BTC'?'cripto':t.startsWith('NTNB')?'tesouro':'rv15', ordem: 50+i }))));
+    const ativos = await q(sb.from('ativos').select('*')); const idDe = Object.fromEntries(ativos.map(a => [a.ticker, a.id]));
+    const aps = await q(sb.from('aportes').insert(grupos.map(g => ({ user_id:uid, data:g.data, tipo:'regular', valor_btc:Math.round(g.valor_btc*100)/100, valor_carteira:Math.round(g.valor_carteira*100)/100, obs:'Importado da planilha' }))).select());
+    const lancs = []; grupos.forEach((g,i) => g.itens.forEach(l => lancs.push({ user_id:uid, aporte_id:aps[i].id, ativo_id:idDe[l.ticker], data:l.data, quantidade:l.quantidade, preco:l.preco, taxas:0 })));
+    for (let i = 0; i < lancs.length; i += 500) await q(sb.from('lancamentos').insert(lancs.slice(i, i+500)));
+    if ($('#impcot')?.checked && r.cotacoes.length) await q(sb.from('cotacoes').insert(r.cotacoes.filter(c => idDe[c.ticker]).map(c => ({ user_id:uid, ativo_id:idDe[c.ticker], preco:c.preco, preco_venda:c.preco_venda, origem:'planilha' }))));
+    if (!S.est?.data_inicio) await q(sb.from('estrategia').update({ data_inicio: grupos[0].data }).eq('user_id', uid));
+    toast(`Importados ${lancs.length} lançamentos.`); S.imp = null; S.tab = 'painel'; recarregar();
+  } catch(e){ toast(erroMsg(e), true); btn.disabled = false; btn.textContent = 'Importar'; }
+}
+
+// ---------- convites (admin) ----------
+function vConvites(){
+  if (!S.perfil?.is_admin) { $('#main').innerHTML = '<p>Somente o administrador gerencia convites.</p>'; return; }
+  $('#main').innerHTML = `<h1>Convites</h1><p class="sub">Só quem estiver nesta lista consegue criar conta. Avise a pessoa para usar "Tenho convite" na tela de entrada, com este mesmo e-mail.</p>
+    <div class="card"><form id="fc" class="row"><input id="cemail" type="email" placeholder="email@exemplo.com" required style="flex:1;min-width:200px"><button class="btn primary">Convidar</button></form></div>
+    <div class="card"><div class="tbl"><table><thead><tr><th>E-mail</th><th>Convidado em</th><th>Situação</th><th></th></tr></thead>
+    <tbody>${S.convites.map(c => `<tr><td>${esc(c.email)}</td><td>${dataBR(c.criado_em)}</td><td>${c.usado_em?'<span class="tag">conta criada</span>':'<span class="tag warn">pendente</span>'}</td>
+      <td class="n">${c.usado_em?'':`<button class="btn link sm danger" data-cdel="${esc(c.email)}">Cancelar</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nenhum convite ainda.</td></tr>'}</tbody></table></div></div>`;
+  $('#fc').onsubmit = async (ev) => { ev.preventDefault(); const email = $('#cemail').value.trim().toLowerCase();
+    try { await q(sb.from('convites').insert({ email, convidado_por:S.user.id })); toast('Convite registrado para ' + email); recarregar(); }
+    catch(e){ toast(/duplicate/i.test(e.message) ? 'Este e-mail já foi convidado.' : erroMsg(e), true); } };
+  $$('[data-cdel]').forEach(b => b.onclick = async () => { try { await q(sb.from('convites').delete().eq('email', b.dataset.cdel)); toast('Convite cancelado.'); recarregar(); } catch(e){ toast(erroMsg(e), true); } });
+}
+</script>
+</body>
+</html>
