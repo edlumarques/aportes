@@ -202,6 +202,7 @@ async function iniciar(){
   try { await carregar(); } catch(e){ $('#app').innerHTML = `<div class="auth"><div class="card"><h1>Erro ao carregar</h1><p>${esc(erroMsg(e))}</p><p class="small">Se é a primeira vez, confira se o script SQL foi executado no Supabase.</p><button class="btn" id="sair">Sair</button></div></div>`; $('#sair').onclick=()=>sb.auth.signOut(); return; }
   if (!S.est) { try { await q(sb.from('estrategia').insert({ user_id:S.user.id })); } catch(e) {} await carregar(); }
   render();
+  if (!S.autoCot && precisaAtualizar()) { S.autoCot = true; atualizarCotacoes(true); }
 }
 
 // ---------- casca ----------
@@ -280,10 +281,11 @@ function vPainel(){
     ${btc.length?`<div class="card"><h2>Bitcoin (aplicação fixa, fora das proporções)</h2><div class="tbl"><table>
       <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th></tr></thead>
       <tbody>${btc.map(p=>linha(p,false)).join('')}</tbody></table></div></div>`:''}
-    <div class="row"><button class="btn primary" id="salvaCot">Salvar cotações</button>${btc.length?'<button class="btn" id="btcApi">Buscar cotação do BTC</button>':''}</div>`;
+    <div class="row"><button class="btn primary" id="atuCot">Atualizar cotações</button><button class="btn" id="salvaCot">Salvar preços digitados</button>
+      <span class="small">${ultimaAtualizacao()}</span></div>`;
 
   $('#salvaCot').onclick = salvarCotacoes;
-  if ($('#btcApi')) $('#btcApi').onclick = buscarBtc;
+  $('#atuCot').onclick = () => atualizarCotacoes(false);
 }
 async function salvarCotacoes(){
   const novas = [];
@@ -300,14 +302,35 @@ async function salvarCotacoes(){
   try { await q(sb.from('cotacoes').insert(novas)); toast(`${novas.length} cotação(ões) salvas.`); recarregar(); }
   catch(e){ toast(erroMsg(e), true); }
 }
-async function buscarBtc(){
-  const a = S.ativos.find(x => x.papel === 'btc'); if (!a) return;
+function ultimaAtualizacao(){
+  const datas = Object.values(S.cot).filter(c => c.origem === 'api').map(c => c.data).sort();
+  return datas.length ? 'Última busca automática: ' + new Date(datas[datas.length-1]).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : 'Cotações automáticas: ETFs (Yahoo/brapi), Tesouro (Tesouro Transparente), BTC (CoinGecko).';
+}
+// Busca cotações pela função "cotacoes" do Supabase e grava as que vierem.
+async function atualizarCotacoes(silencioso){
+  const alvo = S.ativos.filter(a => a.ativo || S.lancs.some(l => l.ativo_id === a.id));
+  if (!alvo.length) return;
+  const btn = $('#atuCot'); if (btn) { btn.disabled = true; btn.textContent = 'Buscando…'; }
   try {
-    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=brl');
-    const j = await r.json(); const p = j?.bitcoin?.brl; if (!(p > 0)) throw new Error('Resposta inválida da CoinGecko');
-    await q(sb.from('cotacoes').insert({ user_id:S.user.id, ativo_id:a.id, preco:p, origem:'api' }));
-    toast('BTC atualizado: ' + brl(p)); recarregar();
-  } catch(e){ toast('Não foi possível buscar o BTC agora. Digite o preço manualmente. ('+erroMsg(e)+')', true); }
+    const { data, error } = await sb.functions.invoke('cotacoes', { body: { itens: alvo.map(a => ({ id:a.id, tipo:a.tipo, ticker:a.ticker, simbolo:a.simbolo_cotacao || null })) } });
+    if (error) throw error;
+    const ok = (data?.resultados || []).filter(r => r.preco > 0);
+    const falhas = (data?.resultados || []).filter(r => r.erro);
+    if (ok.length) await q(sb.from('cotacoes').insert(ok.map(r => ({ user_id:S.user.id, ativo_id:r.id, preco:r.preco,
+      preco_venda: r.preco_venda ?? (S.cot[r.id]?.preco_venda ?? null), data:r.data || new Date().toISOString(), origem:'api' }))));
+    const nome = (id) => S.ativos.find(a => a.id === id)?.ticker || id;
+    if (falhas.length) toast(`${ok.length} cotação(ões) atualizadas. Sem cotação: ` + falhas.map(f => nome(f.id) + ' (' + f.erro + ')').join('; '), true);
+    else if (!silencioso) toast(`${ok.length} cotações atualizadas.`);
+    if (ok.length) await recarregar(); else if (btn) { btn.disabled = false; btn.textContent = 'Atualizar cotações'; }
+  } catch(e){
+    if (btn) { btn.disabled = false; btn.textContent = 'Atualizar cotações'; }
+    if (!silencioso) toast('Não consegui buscar as cotações. A função "cotacoes" foi instalada no Supabase? (' + erroMsg(e) + ')', true);
+  }
+}
+// Na entrada: se alguma cotação tiver mais de 6 horas, atualiza sozinho (uma vez por sessão)
+function precisaAtualizar(){
+  const ativos = S.ativos.filter(a => a.ativo);
+  return ativos.some(a => { const c = S.cot[a.id]; return !c || (Date.now() - new Date(c.data).getTime()) > 6*3600*1000; });
 }
 
 // ---------- projeção de IR ----------
@@ -476,6 +499,7 @@ function vEstrat(){
     <td class="n"><input class="cell w" data-k="peso" inputmode="decimal" value="${a.papel==='btc'?'':nf(Number(a.peso||0)*100,0,4)}" ${a.papel==='btc'?'disabled':''}></td>
     <td><select data-k="fracao"><option value="inteira" ${a.fracao==='inteira'?'selected':''}>Inteira</option><option value="centesimo" ${a.fracao==='centesimo'?'selected':''}>0,01</option><option value="livre" ${a.fracao==='livre'?'selected':''}>Livre</option></select></td>
     <td><select data-k="classe_ir"><option value="rv15" ${a.classe_ir==='rv15'?'selected':''}>RV 15%</option><option value="tesouro" ${a.classe_ir==='tesouro'?'selected':''}>Tesouro</option><option value="cripto" ${a.classe_ir==='cripto'?'selected':''}>Cripto</option></select></td>
+    <td><input data-k="simbolo_cotacao" value="${esc(a.simbolo_cotacao||'')}" placeholder="${a.tipo==='tesouro'?'Tesouro IPCA+ 2040':a.tipo==='cripto'?'bitcoin':'automático'}" style="min-width:150px"></td>
     <td style="text-align:center"><input type="checkbox" data-k="ativo" ${a.ativo!==false?'checked':''}></td>
     <td><button type="button" class="btn link sm danger" data-rm="${i}">Remover</button></td></tr>`;
   S._ativosEd = S._ativosEd || S.ativos.map(a => ({...a}));
@@ -492,8 +516,8 @@ function vEstrat(){
       <div><label>Corretora do BTC (para IR)</label><select id="ereg"><option value="nacional" ${e.btc_regime!=='exterior'?'selected':''}>Brasileira</option><option value="exterior" ${e.btc_regime==='exterior'?'selected':''}>No exterior</option></select></div>
     </div></div>
     <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Ativos</h2><span id="psum" class="tag"></span></div>
-      <p class="small">Peso em % só para ativos da carteira; precisa somar 100%. O BTC é aplicação fixa e fica fora das proporções. Para parar de aportar num ativo sem perder o histórico, desmarque "Ativo".</p>
-      <div class="tbl"><table><thead><tr><th>Ticker</th><th>Nome</th><th>Tipo</th><th>Papel</th><th class="n">Peso %</th><th>Fração</th><th>IR</th><th>Ativo</th><th></th></tr></thead>
+      <p class="small">"Código p/ cotação" é opcional: em branco, o app usa o próprio ticker (NTNB40 vira Tesouro IPCA+ 2040). Preencha só se a busca automática não encontrar o ativo. Peso em % só para ativos da carteira; precisa somar 100%. O BTC é aplicação fixa e fica fora das proporções. Para parar de aportar num ativo sem perder o histórico, desmarque "Ativo".</p>
+      <div class="tbl"><table><thead><tr><th>Ticker</th><th>Nome</th><th>Tipo</th><th>Papel</th><th class="n">Peso %</th><th>Fração</th><th>IR</th><th>Código p/ cotação</th><th>Ativo</th><th></th></tr></thead>
       <tbody id="tbA">${S._ativosEd.map(linhaAtivo).join('')}</tbody></table></div>
       <button type="button" class="btn sm" id="addA" style="margin-top:10px">+ Adicionar ativo</button></div>
     <div class="row"><button class="btn primary" id="salvaE">Salvar estratégia</button><button class="btn" id="descE">Descartar alterações</button></div>`;
@@ -528,7 +552,7 @@ async function salvarEstrategia(){
     const manter = new Set(ed.filter(a => a.id).map(a => a.id));
     const remover = S.ativos.filter(a => !manter.has(a.id)).map(a => a.id);
     if (remover.length) await q(sb.from('ativos').delete().in('id', remover));
-    const campos = (a, i) => ({ ticker:a.ticker, nome:a.nome||null, tipo:a.tipo, papel:a.papel, peso:a.papel==='btc'?0:Number(a.peso||0), fracao:a.fracao, classe_ir:a.classe_ir, ativo:a.ativo!==false, ordem:i });
+    const campos = (a, i) => ({ ticker:a.ticker, nome:a.nome||null, tipo:a.tipo, papel:a.papel, peso:a.papel==='btc'?0:Number(a.peso||0), fracao:a.fracao, classe_ir:a.classe_ir, simbolo_cotacao:(a.simbolo_cotacao||'').trim()||null, ativo:a.ativo!==false, ordem:i });
     for (const [i,a] of ed.entries()) { if (a.id) await q(sb.from('ativos').update(campos(a,i)).eq('id', a.id)); }
     const novos = ed.map((a,i) => [a,i]).filter(([a]) => !a.id).map(([a,i]) => ({ ...campos(a,i), user_id:S.user.id }));
     if (novos.length) await q(sb.from('ativos').insert(novos));
