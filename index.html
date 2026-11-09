@@ -600,7 +600,7 @@ function vEstrat(){
   const linhaAtivo = (a, i) => `<tr data-row="${i}" data-id="${a.id||''}">
     <td><input class="cell w" data-k="ticker" value="${esc(a.ticker||'')}" style="text-align:left;text-transform:uppercase"></td>
     <td><input data-k="nome" value="${esc(a.nome||'')}" style="min-width:140px"></td>
-    <td><select data-k="tipo">${['etf','tesouro','cripto','acao','fii','outro'].map(t=>`<option ${a.tipo===t?'selected':''} value="${t}">${{etf:'ETF',tesouro:'Tesouro',cripto:'Cripto',acao:'Ação',fii:'FII',outro:'Outro'}[t]}</option>`).join('')}</select></td>
+    <td><select data-k="tipo">${['etf','tesouro','cripto','acao','fii','outro'].map(t=>`<option ${a.tipo===t?'selected':''} value="${t}">${ ({etf:'ETF',tesouro:'Tesouro',cripto:'Cripto',acao:'Ação',fii:'FII',outro:'Outro'})[t] }</option>`).join('')}</select></td>
     <td><select data-k="papel"><option value="carteira" ${a.papel!=='btc'?'selected':''}>Carteira</option><option value="btc" ${a.papel==='btc'?'selected':''}>Fixo (BTC)</option></select></td>
     <td class="n"><input class="cell w" data-k="peso" inputmode="decimal" value="${a.papel==='btc'?'':nf(Number(a.peso||0)*100,0,4)}" ${a.papel==='btc'?'disabled':''}></td>
     <td><select data-k="fracao"><option value="inteira" ${a.fracao==='inteira'?'selected':''}>Inteira</option><option value="centesimo" ${a.fracao==='centesimo'?'selected':''}>0,01</option><option value="livre" ${a.fracao==='livre'?'selected':''}>Livre</option></select></td>
