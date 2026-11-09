@@ -90,6 +90,21 @@ input[type=checkbox]{width:auto}
 #toast.show{opacity:1}
 #toast.err{background:var(--neg);color:#fff}
 .muted{color:var(--muted)}
+
+.hwrap{display:flex;align-items:flex-start}
+.hwrap #hax{flex:none}
+.hchart{position:relative;overflow-x:auto;flex:1;min-width:0}
+.hchart svg{display:block}
+.hchart .gl{stroke:var(--line)} .hchart .ax{fill:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.hchart rect.seg{transition:opacity .1s}
+.hchart.hov rect.seg{opacity:.45} .hchart.hov g.on rect.seg{opacity:1}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;margin-bottom:10px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.12);border-radius:8px;padding:8px 10px;font-size:12.5px;min-width:170px;display:none;z-index:3}
+.tip .r{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums}
+.seg-ctl{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg-ctl button{border:0;background:var(--card);color:var(--muted);font:inherit;font-size:13px;padding:6px 11px;cursor:pointer}
+.seg-ctl button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
 @media (max-width:640px){ .kpi .v{font-size:19px} .alloc{grid-template-columns:64px 1fr 96px} }
 </style>
 </head>
@@ -206,7 +221,7 @@ async function iniciar(){
 }
 
 // ---------- casca ----------
-const TABS = [['painel','Painel'],['aporte','Novo aporte'],['lanc','Lançamentos'],['estrat','Estratégia'],['ir','IR'],['importar','Importar'],['convites','Convites']];
+const TABS = [['painel','Painel'],['aporte','Novo aporte'],['lanc','Lançamentos'],['hist','Histórico'],['estrat','Estratégia'],['ir','IR'],['importar','Importar'],['convites','Convites']];
 function render(){
   const tabs = TABS.filter(([k]) => k !== 'convites' || S.perfil?.is_admin);
   $('#app').innerHTML = `<header><div class="bar"><div class="brand"><i></i> Aportes</div>
@@ -215,7 +230,7 @@ function render(){
     <main id="main"></main>`;
   $('#sair').onclick = () => sb.auth.signOut();
   $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); window.scrollTo(0,0); });
-  ({ painel:vPainel, aporte:vAporte, lanc:vLanc, estrat:vEstrat, ir:vIR, importar:vImportar, convites:vConvites })[S.tab]();
+  ({ painel:vPainel, aporte:vAporte, lanc:vLanc, hist:vHist, estrat:vEstrat, ir:vIR, importar:vImportar, convites:vConvites })[S.tab]();
 }
 async function recarregar(){ await carregar(); render(); }
 
@@ -443,6 +458,97 @@ async function registrarAporte(){
     if (!S.est?.data_inicio && tipo==='regular' && !S.aportes.length) await q(sb.from('estrategia').update({ data_inicio:data }).eq('user_id', S.user.id));
     toast(`Aporte registrado: ${itens.length} compra(s).`); S.tab = 'painel'; S.sug = null; recarregar();
   } catch(e){ toast(erroMsg(e), true); btn.disabled = false; }
+}
+
+// ---------- histórico de aportes (barras empilhadas por ativo) ----------
+const CORES = ['#1f77d0','#f26b3a','#16b39a','#f4a62a','#f283b0','#7a5cd6','#8c9a2e','#d64545','#3fb0e0','#a86b3c'];
+function corAtivo(a){ const i = S.ativos.findIndex(x => x.id === a.id); return CORES[(i < 0 ? 0 : i) % CORES.length]; }
+function vHist(){
+  S.histAgr = S.histAgr || 'aporte'; S.histPer = S.histPer || 'tudo';
+  const porId = Object.fromEntries(S.ativos.map(a => [a.id, a]));
+  const apData = Object.fromEntries(S.aportes.map(a => [a.id, a.data]));
+  let lancs = S.lancs.slice();
+  if (S.histPer !== 'tudo') { const d = new Date(); d.setMonth(d.getMonth() - (S.histPer==='12m'?12:6)); const lim = d.toISOString().slice(0,10); lancs = lancs.filter(l => l.data >= lim); }
+  // agrupa: cada aporte (ou cada mês) vira uma barra
+  const grupos = new Map();
+  for (const l of lancs) {
+    const dataRef = (l.aporte_id && apData[l.aporte_id]) || l.data;
+    const k = S.histAgr === 'mes' ? dataRef.slice(0,7) : (l.aporte_id ? 'a'+l.aporte_id : 'd'+l.data);
+    if (!grupos.has(k)) grupos.set(k, { k, data:dataRef, val:{} });
+    const g = grupos.get(k); if (dataRef < g.data) g.data = dataRef;
+    g.val[l.ativo_id] = (g.val[l.ativo_id]||0) + Number(l.quantidade)*Number(l.preco) + Number(l.taxas||0);
+  }
+  const barras = [...grupos.values()].sort((a,b) => a.data < b.data ? -1 : 1);
+  const usados = S.ativos.filter(a => barras.some(b => b.val[a.id]));
+  const total = barras.reduce((s,b) => s + Object.values(b.val).reduce((t,v)=>t+v,0), 0);
+  const btn = (grp, v, l) => `<button data-${grp}="${v}" aria-pressed="${(grp==='agr'?S.histAgr:S.histPer)===v}">${l}</button>`;
+  $('#main').innerHTML = `<h1>Histórico de aportes</h1><p class="sub">Só o que foi efetivamente aportado, ativo por ativo, na ordem em que aconteceu.</p>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div class="row"><span class="seg-ctl">${btn('agr','aporte','Por aporte')}${btn('agr','mes','Por mês')}</span>
+          <span class="seg-ctl">${btn('per','tudo','Tudo')}${btn('per','12m','12 meses')}${btn('per','6m','6 meses')}</span></div>
+        <span class="small">${barras.length} ${S.histAgr==='mes'?'meses':'aportes'} · ${brl(total)}</span>
+      </div>
+      <div class="legend">${usados.map(a => `<span><i style="background:${corAtivo(a)}"></i>${esc(a.ticker)}</span>`).join('')}</div>
+      <div class="hwrap"><div id="hax"></div><div class="hchart" id="hc">${barras.length ? '' : '<p class="muted">Nenhum aporte no período.</p>'}<div class="tip" id="tip"></div></div></div>
+    </div>
+    ${barras.length ? `<div class="card"><h2>Total aportado por ativo no período</h2><div class="tbl"><table>
+      <thead><tr><th>Ativo</th><th class="n">Aportado</th><th class="n">% do total</th><th class="n">${S.histAgr==='mes'?'Meses':'Aportes'} com compra</th></tr></thead>
+      <tbody>${usados.map(a => { const v = barras.reduce((s,b)=>s+(b.val[a.id]||0),0); const n = barras.filter(b=>b.val[a.id]).length;
+        return `<tr><td><span class="legend" style="margin:0;display:inline"><i style="background:${corAtivo(a)}"></i></span><span class="tick">${esc(a.ticker)}</span></td><td class="n">${brl(v)}</td><td class="n">${pct(total>0?v/total:0)}</td><td class="n">${n}</td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td>Total</td><td class="n">${brl(total)}</td><td class="n">100%</td><td></td></tr></tfoot></table></div></div>` : ''}`;
+  $$('[data-agr]').forEach(b => b.onclick = () => { S.histAgr = b.dataset.agr; vHist(); });
+  $$('[data-per]').forEach(b => b.onclick = () => { S.histPer = b.dataset.per; vHist(); });
+  if (barras.length) desenharHist(barras, usados);
+}
+function desenharHist(barras, usados){
+  const box = $('#hc'), tip = $('#tip');
+  const somas = barras.map(b => Object.values(b.val).reduce((t,v)=>t+v,0));
+  const maxV = Math.max(...somas) || 1;
+  const passo = (() => { const bruto = maxV / 5, p = Math.pow(10, Math.floor(Math.log10(bruto))); const m = bruto/p; return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p; })();
+  const topo = Math.ceil(maxV / passo) * passo;
+  const fmtEixo = (v) => 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const eixoW = 14 + fmtEixo(topo).length * 6.6, padL = 20, padR = 8, padT = 8, padB = 26, H = 300;
+  const larguraBox = box.clientWidth ? box.clientWidth - eixoW : 600;
+  const slotMin = 9;
+  const W = Math.max(larguraBox, padL + padR + barras.length * slotMin);
+  const slot = (W - padL - padR) / barras.length, bw = Math.max(2, Math.min(42, slot * 0.78));
+  const y = (v) => padT + (H - padT - padB) * (1 - v / topo);
+  let svg = `<svg width="${W}" height="${H}" role="img" aria-label="Aportes por ativo">`, eixo = `<svg width="${eixoW}" height="${H}" class="hchart" style="overflow:visible">`;
+  for (let v = 0; v <= topo + 1e-6; v += passo) { svg += `<line class="gl" x1="0" x2="${W-padR}" y1="${y(v)}" y2="${y(v)}"/>`; eixo += `<text class="ax" x="${eixoW-6}" y="${y(v)+4}" text-anchor="end">${fmtEixo(v)}</text>`; }
+  $('#hax').innerHTML = eixo + '</svg>';
+  // rótulos do eixo X: ano no primeiro aporte de cada ano; com poucos anos, mês
+  const anos = new Set(barras.map(b => b.data.slice(0,4)));
+  const MES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  let ultimoRot = null, ultimoX = -999;
+  barras.forEach((b, i) => {
+    const x0 = padL + i*slot + (slot-bw)/2; let acc = 0;
+    svg += `<g data-i="${i}">`;
+    for (const a of usados) { const v = b.val[a.id]; if (!v) continue;
+      svg += `<rect class="seg" x="${x0.toFixed(2)}" y="${y(acc+v).toFixed(2)}" width="${bw.toFixed(2)}" height="${(y(acc)-y(acc+v)).toFixed(2)}" fill="${corAtivo(a)}"/>`; acc += v; }
+    svg += `<rect x="${(padL+i*slot).toFixed(2)}" y="${padT}" width="${slot.toFixed(2)}" height="${H-padT-padB}" fill="transparent"/></g>`;
+    const rot = anos.size > 2 ? b.data.slice(0,4) : MES[Number(b.data.slice(5,7))-1] + '/' + b.data.slice(2,4);
+    const cx = padL + i*slot + slot/2;
+    if (rot !== ultimoRot && cx - ultimoX > 46) { svg += `<text class="ax" x="${cx}" y="${H-8}" text-anchor="middle">${rot}</text>`; ultimoX = cx; }
+    if (rot !== ultimoRot) ultimoRot = rot;
+  });
+  svg += `<line x1="${padL}" x2="${W-padR}" y1="${y(0)}" y2="${y(0)}" stroke="var(--muted)"/></svg>`;
+  box.insertAdjacentHTML('afterbegin', svg);
+  const grupos = $$('g[data-i]', box);
+  grupos.forEach(g => {
+    g.onmouseenter = g.ontouchstart = () => { const b = barras[Number(g.dataset.i)];
+      box.classList.add('hov'); grupos.forEach(x => x.classList.toggle('on', x === g));
+      const tot = Object.values(b.val).reduce((t,v)=>t+v,0);
+      tip.innerHTML = `<div style="font-weight:650;margin-bottom:4px">${S.histAgr==='mes' ? MES[Number(b.data.slice(5,7))-1]+'/'+b.data.slice(0,4) : dataBR(b.data)}</div>`
+        + usados.filter(a => b.val[a.id]).slice().reverse().map(a => `<div class="r"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:${corAtivo(a)}"></i>${esc(a.ticker)}</span><span>${brl(b.val[a.id])}</span></div>`).join('')
+        + `<div class="r" style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px;font-weight:650"><span>Total</span><span>${brl(tot)}</span></div>`;
+      tip.style.display = 'block';
+      const r = g.getBBox();
+      let left = r.x + r.width + 10; if (left + tip.offsetWidth > box.scrollLeft + box.clientWidth) left = r.x - tip.offsetWidth - 10;
+      tip.style.left = Math.max(box.scrollLeft, left) + 'px'; tip.style.top = '10px'; };
+    g.onmouseleave = () => { box.classList.remove('hov'); grupos.forEach(x => x.classList.remove('on')); tip.style.display = 'none'; };
+  });
+  box.scrollLeft = box.scrollWidth; // mostra os aportes mais recentes primeiro
 }
 
 // ---------- lançamentos ----------
