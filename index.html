@@ -91,6 +91,8 @@ input[type=checkbox]{width:auto}
 #toast.err{background:var(--neg);color:#fff}
 .muted{color:var(--muted)}
 
+#tbA select{min-width:108px;padding:6px 8px}
+#tbA input[data-k=nome]{min-width:150px}
 .hwrap{display:flex;align-items:flex-start}
 .hwrap #hax{flex:none}
 .hchart{position:relative;overflow-x:auto;flex:1;min-width:0}
@@ -140,6 +142,8 @@ const parseNum = (s) => { if (s == null) return NaN; s = String(s).trim(); if (!
   return Number(s); };
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
 const dataBR = (iso) => iso ? iso.slice(0,10).split('-').reverse().join('/') : '—';
+const isFixo = (a) => a.papel === 'fixo' || a.papel === 'btc';
+const valorFixos = () => S.ativos.filter(a => isFixo(a) && a.ativo).reduce((t,a) => t + Number(a.valor_fixo||0), 0);
 const qtdFmt = (a, q) => a.fracao === 'livre' ? nf(q, 8) : a.fracao === 'centesimo' ? nf(q, 2) : nf(q, 0);
 function toast(msg, err=false){ const t=$('#toast'); t.textContent=msg; t.className='show'+(err?' err':''); clearTimeout(t._h); t._h=setTimeout(()=>t.className='', err?6000:3000); }
 function erroMsg(e){ const m = e?.message || String(e);
@@ -237,65 +241,69 @@ async function recarregar(){ await carregar(); render(); }
 // ---------- painel ----------
 function vPainel(){
   const pos = Calc.posicao(S.ativos, S.lancs, S.cot).filter(p => p.ativo || p.qtd > 0);
-  const btc = pos.filter(p => p.papel === 'btc'), cart = pos.filter(p => p.papel === 'carteira');
+  const fixos = pos.filter(isFixo), cart = pos.filter(p => !isFixo(p));
+  const comPesos = cart.some(p => p.ativo && Number(p.peso) > 0);
   const soma = (arr, k) => arr.reduce((s,p) => s + (p[k] || 0), 0);
-  const valCart = soma(cart,'valor'), valBtc = soma(btc,'valor'), patrimonio = valCart + valBtc;
+  const valCart = soma(cart,'valor'), valFix = soma(fixos,'valor'), patrimonio = valCart + valFix;
   const aplicado = soma(pos,'custo'), res = patrimonio - aplicado;
   const semPreco = pos.filter(p => p.qtd > 0 && p.preco == null);
   const e = S.est || {};
   const regulares = S.aportes.filter(a => a.tipo === 'regular');
   const inicio = e.data_inicio || (S.aportes[0]?.data) || (S.lancs[0]?.data) || null;
   const periodos = Calc.periodosDecorridos(inicio, hojeISO(), e.periodicidade, regulares.length);
-  const porPeriodo = Number(e.valor_btc||0) + Number(e.valor_carteira||0);
+  const porPeriodo = valorFixos() + Number(e.valor_carteira||0);
   const previsto = periodos * porPeriodo;
   const metaPct = e.meta_valor > 0 ? aplicado / e.meta_valor : 0;
 
   const linha = (p, comPeso) => {
     const atualPct = comPeso && valCart > 0 && p.valor != null ? p.valor / valCart : null;
-    const desvio = atualPct != null ? atualPct - Number(p.peso) : null;
+    const desvio = atualPct != null && comPesos ? atualPct - Number(p.peso) : null;
     const tes = p.tipo === 'tesouro';
     return `<tr>
       <td><span class="tick">${esc(p.ticker)}</span>${!p.ativo?' <span class="tag warn">inativo</span>':''}<div class="small">${esc(p.nome||'')}</div></td>
       <td class="n">${qtdFmt(p, p.qtd)}</td>
       <td class="n">${brl(p.pm)}</td>
-      <td class="n"><input class="cell" data-cot="${p.id}" inputmode="decimal" value="${p.preco!=null? nf(p.preco, 2, p.papel==='btc'?2:6):''}" placeholder="preço">
+      <td class="n"><input class="cell" data-cot="${p.id}" inputmode="decimal" value="${p.preco!=null? nf(p.preco, 2, p.tipo==='cripto'?2:6):''}" placeholder="preço">
         ${tes?`<div class="small" style="margin-top:3px">venda <input class="cell w" data-venda="${p.id}" inputmode="decimal" value="${p.cotacao?.preco_venda!=null?nf(p.cotacao.preco_venda,2):''}"></div>`:''}
         <div class="small">${p.cotacao ? dataBR(p.cotacao.data)+' · '+p.cotacao.origem : 'sem cotação'}</div></td>
       <td class="n">${brl(p.custo)}</td>
       <td class="n">${brl(p.valor)}</td>
       <td class="n ${sinal(p.resultado)}">${brl(p.resultado)}<div class="small ${sinal(p.resultado)}">${pct(p.resultadoPct,2)}</div></td>
-      ${comPeso?`<td class="n">${pct(atualPct)}</td><td class="n">${pct(Number(p.peso))}</td><td class="n ${desvio==null?'':desvio<0?'neg':'pos'}">${desvio==null?'—':(desvio>0?'+':'')+pct(desvio)}</td>`:''}
+      ${comPeso?`<td class="n">${pct(atualPct)}</td>${comPesos?`<td class="n">${pct(Number(p.peso))}</td><td class="n ${desvio==null?'':desvio<0?'neg':'pos'}">${desvio==null?'—':(desvio>0?'+':'')+pct(desvio)}</td>`:''}`:`<td class="n">${brl(Number(p.valor_fixo||0))}</td>`}
     </tr>`;
   };
-  const maxPct = Math.max(0.3, ...cart.map(p => Math.max(Number(p.peso), valCart>0&&p.valor? p.valor/valCart : 0)));
+  const maxPct = Math.max(0.3, ...cart.map(p => Math.max(comPesos?Number(p.peso):0, valCart>0&&p.valor? p.valor/valCart : 0)));
 
   $('#main').innerHTML = `
     <h1>Painel</h1><p class="sub">Posição atual, metas e cotações. Edite os preços e salve para atualizar.</p>
     ${semPreco.length?`<div class="note">Sem cotação: ${semPreco.map(p=>esc(p.ticker)).join(', ')}. Informe o preço abaixo para calcular o valor atual.</div>`:''}
+    ${!S.ativos.length ? `<div class="ok">Sua conta ainda não tem ativos. Comece pela aba <b>Estratégia</b>: cadastre os ativos da carteira e, se quiser, as aplicações fixas.</div>` : ''}
     <div class="kpis">
-      <div class="kpi"><div class="l">Patrimônio</div><div class="v">${brl(patrimonio)}</div><div class="d">Carteira ${brl(valCart)} · BTC ${brl(valBtc)}</div></div>
+      <div class="kpi"><div class="l">Patrimônio</div><div class="v">${brl(patrimonio)}</div><div class="d">${fixos.length ? `Carteira ${brl(valCart)} · Fixos ${brl(valFix)}` : 'Carteira'}</div></div>
       <div class="kpi"><div class="l">Total aplicado</div><div class="v">${brl(aplicado)}</div><div class="d">${S.lancs.length} lançamentos em ${S.aportes.length} aportes</div></div>
       <div class="kpi"><div class="l">Resultado</div><div class="v ${sinal(res)}">${brl(res)}</div><div class="d ${sinal(res)}">${aplicado>0?pct(res/aplicado,2):'—'}</div></div>
-      <div class="kpi"><div class="l">Aportado × previsto</div><div class="v">${brl(aplicado)}</div><div class="d">Previsto ${brl(previsto)} · ${e.periodicidade==='livre'?periodos+' aportes':'período '+periodos}</div></div>
+      ${porPeriodo > 0
+        ? `<div class="kpi"><div class="l">Aportado × previsto</div><div class="v">${brl(aplicado)}</div><div class="d">Previsto ${brl(previsto)} · ${e.periodicidade==='livre'?periodos+' aportes':'período '+periodos}</div></div>`
+        : `<div class="kpi"><div class="l">Último aporte</div><div class="v">${S.aportes.length ? dataBR(S.aportes[S.aportes.length-1].data) : '—'}</div><div class="d">${S.aportes.length} aportes registrados</div></div>`}
     </div>
-    <div class="card">
+    ${Number(e.meta_valor) > 0 ? `<div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Meta de aportes</h2><span class="small">${brl(aplicado)} de ${brl(e.meta_valor)} · ${pct(metaPct,2)}</span></div>
       <div class="progress" style="margin-top:10px"><i style="width:${Math.min(100, metaPct*100).toFixed(2)}%"></i></div>
-      <p class="small" style="margin:8px 0 0">${periodos} de ${nf(e.meta_periodos,0)} períodos · ${brl(porPeriodo)} por período · o patrimônio final depende do rendimento.</p>
-    </div>
-    <div class="card"><h2>Carteira: distribuição atual × alvo</h2>
+      <p class="small" style="margin:8px 0 0">${Number(e.meta_periodos)>0 ? `${periodos} de ${nf(e.meta_periodos,0)} períodos · ` : ''}${porPeriodo>0 ? brl(porPeriodo)+' por período · ' : ''}o patrimônio final depende do rendimento.</p>
+    </div>` : ''}
+    ${cart.some(p=>p.ativo) ? `<div class="card"><h2>Carteira: distribuição atual${comPesos?' × alvo':''}</h2>
       <div class="alloc">${cart.filter(p=>p.ativo).map(p => { const a = valCart>0&&p.valor? p.valor/valCart:0;
-        return `<div class="tick">${esc(p.ticker)}</div><div class="track" title="Atual ${pct(a)} · alvo ${pct(Number(p.peso))}"><span class="now" style="width:${(a/maxPct*100).toFixed(2)}%"></span><span class="goal" style="left:${(Number(p.peso)/maxPct*100).toFixed(2)}%"></span></div><div class="num">${pct(a)} <span class="muted">/ ${pct(Number(p.peso))}</span></div>`; }).join('')}</div>
-      <p class="small" style="margin:10px 0 0">Barra = participação atual · traço = alvo.</p>
-    </div>
-    <div class="card"><h2>Carteira</h2><div class="tbl"><table>
-      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th><th class="n">% atual</th><th class="n">% alvo</th><th class="n">Desvio</th></tr></thead>
-      <tbody>${cart.map(p=>linha(p,true)).join('') || '<tr><td colspan="10" class="muted">Nenhum ativo na carteira.</td></tr>'}</tbody>
-      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td class="n">${brl(soma(cart,'custo'))}</td><td class="n">${brl(valCart)}</td><td class="n ${sinal(valCart-soma(cart,'custo'))}">${brl(valCart-soma(cart,'custo'))}</td><td class="n">100%</td><td></td><td></td></tr></tfoot>
-    </table></div></div>
-    ${btc.length?`<div class="card"><h2>Bitcoin (aplicação fixa, fora das proporções)</h2><div class="tbl"><table>
-      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th></tr></thead>
-      <tbody>${btc.map(p=>linha(p,false)).join('')}</tbody></table></div></div>`:''}
+        return `<div class="tick">${esc(p.ticker)}</div><div class="track" title="Atual ${pct(a)}${comPesos?' · alvo '+pct(Number(p.peso)):''}"><span class="now" style="width:${(a/maxPct*100).toFixed(2)}%"></span>${comPesos?`<span class="goal" style="left:${(Number(p.peso)/maxPct*100).toFixed(2)}%"></span>`:''}</div><div class="num">${pct(a)}${comPesos?` <span class="muted">/ ${pct(Number(p.peso))}</span>`:''}</div>`; }).join('')}</div>
+      <p class="small" style="margin:10px 0 0">Barra = participação atual${comPesos?' · traço = alvo':''}.</p>
+    </div>` : ''}
+    ${cart.length ? `<div class="card"><h2>Carteira</h2><div class="tbl"><table>
+      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th><th class="n">% atual</th>${comPesos?'<th class="n">% alvo</th><th class="n">Desvio</th>':''}</tr></thead>
+      <tbody>${cart.map(p=>linha(p,true)).join('')}</tbody>
+      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td class="n">${brl(soma(cart,'custo'))}</td><td class="n">${brl(valCart)}</td><td class="n ${sinal(valCart-soma(cart,'custo'))}">${brl(valCart-soma(cart,'custo'))}</td><td class="n">100%</td>${comPesos?'<td></td><td></td>':''}</tr></tfoot>
+    </table></div></div>` : ''}
+    ${fixos.length?`<div class="card"><h2>Aplicações fixas (fora das proporções)</h2><div class="tbl"><table>
+      <thead><tr><th>Ativo</th><th class="n">Qtd</th><th class="n">Preço médio</th><th class="n">Cotação</th><th class="n">Aplicado</th><th class="n">Valor atual</th><th class="n">Resultado</th><th class="n">Valor por aporte</th></tr></thead>
+      <tbody>${fixos.map(p=>linha(p,false)).join('')}</tbody></table></div></div>`:''}
     <div class="row"><button class="btn primary" id="atuCot">Atualizar cotações</button><button class="btn" id="salvaCot">Salvar preços digitados</button>
       <span class="small">${ultimaAtualizacao()}</span></div>`;
 
@@ -392,68 +400,94 @@ function vIR(){
 // ---------- novo aporte ----------
 function vAporte(){
   const e = S.est || {};
-  $('#main').innerHTML = `<h1>Novo aporte</h1><p class="sub">Calcule a sugestão, ajuste o que realmente comprou e registre.</p>
+  const fixos = S.ativos.filter(a => isFixo(a) && a.ativo), cart = S.ativos.filter(a => !isFixo(a) && a.ativo);
+  const comPesos = cart.some(a => Number(a.peso) > 0);
+  if (!S.ativos.some(a => a.ativo)) { $('#main').innerHTML = `<h1>Novo aporte</h1><div class="ok">Cadastre seus ativos na aba <b>Estratégia</b> antes do primeiro aporte.</div>`; return; }
+  $('#main').innerHTML = `<h1>Novo aporte</h1><p class="sub">${comPesos ? 'Calcule a sugestão, ajuste o que realmente comprou e registre.' : 'Lance o que comprou em cada ativo e registre.'}</p>
     <div class="card"><form id="fs" class="grid">
       <div><label>Data</label><input id="adata" type="date" value="${hojeISO()}" required></div>
       <div><label>Tipo</label><select id="atipo"><option value="regular">Regular</option><option value="extra">Extra (avulso)</option></select></div>
-      <div><label>Valor BTC (R$)</label><input id="abtc" inputmode="decimal" value="${nf(e.valor_btc,2)}"></div>
-      <div><label>Valor carteira (R$)</label><input id="acart" inputmode="decimal" value="${nf(e.valor_carteira,2)}"></div>
-      <div><label>Regra</label><select id="amodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>
-      <div style="align-self:end"><button class="btn primary" style="width:100%">Calcular sugestão</button></div>
+      ${cart.length ? `<div><label>Valor para a carteira (R$)${comPesos?'':' — opcional'}</label><input id="acart" inputmode="decimal" value="${Number(e.valor_carteira)>0?nf(e.valor_carteira,2):''}" placeholder="${comPesos?'ex.: 4.000,00':'em branco = livre'}"></div>` : ''}
+      ${comPesos ? `<div><label>Regra</label><select id="amodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>` : ''}
+      <div style="align-self:end"><button class="btn primary" style="width:100%">${comPesos ? 'Calcular sugestão' : 'Montar aporte'}</button></div>
     </form></div><div id="res"></div>`;
-  $('#atipo').onchange = (ev) => { if (ev.target.value==='extra') { $('#abtc').value = nf(0,2); } else { $('#abtc').value = nf(e.valor_btc,2); $('#acart').value = nf(e.valor_carteira,2); } };
   $('#fs').onsubmit = (ev) => { ev.preventDefault(); calcularAporte(); };
 }
 function calcularAporte(){
-  const vb = parseNum($('#abtc').value) || 0, vc = parseNum($('#acart').value) || 0, modo = $('#amodo').value;
+  const e = S.est || {};
+  const tipo = $('#atipo').value, vc = $('#acart') ? (parseNum($('#acart').value) || 0) : 0, modo = $('#amodo')?.value || 'deficit';
   const pos = Calc.posicao(S.ativos, S.lancs, S.cot);
-  const cart = pos.filter(p => p.papel==='carteira' && p.ativo && Number(p.peso) > 0);
-  const faltam = cart.filter(p => !(p.preco > 0)).map(p => p.ticker);
-  const btcA = pos.find(p => p.papel==='btc' && p.ativo);
-  if (vb > 0 && btcA && !(btcA.preco > 0)) faltam.push(btcA.ticker);
-  if (faltam.length) { $('#res').innerHTML = `<div class="note">Informe a cotação de ${faltam.map(esc).join(', ')} no Painel antes de calcular.</div>`; return; }
-  const s = vc > 0 ? Calc.sugerirCarteira(cart, vc, modo) : { linhas:[], troco:0, totalAtual:0, totalProjetado:0, somaDeficit:0 };
-  const b = btcA && vb > 0 ? { ...btcA, ...Calc.sugerirBtc(vb, btcA.preco) } : null;
-  S.sug = { vb, vc, modo, s, b };
-  const linhas = s.linhas.map((l,i) => `<tr>
-      <td class="tick">${esc(l.ticker)}</td><td class="n">${brl(l.atual)}</td><td class="n">${brl(l.alvo)}</td><td class="n">${brl(l.deficit)}</td><td class="n">${brl(l.sugestao)}</td>
-      <td class="n"><input class="cell w" data-q="${i}" inputmode="decimal" value="${qtdFmt(l, l.qtd)}">${l.qtdTroco?`<div class="small">+${qtdFmt(l,l.qtdTroco)} do troco</div>`:''}</td>
-      <td class="n"><input class="cell" data-p="${i}" inputmode="decimal" value="${nf(l.preco,2,6)}"></td>
-      <td class="n" data-t="${i}">${brl(l.gasto)}</td></tr>`).join('');
+  const fixos = pos.filter(p => isFixo(p) && p.ativo), cartTodos = pos.filter(p => !isFixo(p) && p.ativo);
+  const pesados = cartTodos.filter(p => Number(p.peso) > 0);
+  const sugerir = pesados.length > 0 && vc > 0;
+  let s = null;
+  if (sugerir) {
+    const faltam = pesados.filter(p => !(p.preco > 0)).map(p => p.ticker);
+    if (faltam.length) { $('#res').innerHTML = `<div class="note">Para sugerir a divisão, informe a cotação de ${faltam.map(esc).join(', ')} no Painel (ou clique em "Atualizar cotações").</div>`; return; }
+    s = Calc.sugerirCarteira(pesados, vc, modo);
+  }
+  // linhas da carteira: sugestão (com pesos e valor) ou lançamento livre
+  const cart = sugerir ? s.linhas : cartTodos.map(p => ({ ...p, qtd:0, gasto:0 }));
+  // linhas das aplicações fixas
+  const fix = fixos.map(p => { const v = tipo === 'extra' ? 0 : Number(p.valor_fixo||0);
+    const qtd = p.preco > 0 && v > 0 ? Calc.arredondaQtd(v / p.preco, p.fracao) : 0;
+    return { ...p, valorPrev: v, qtd, gasto: qtd * (p.preco||0) }; });
+  S.sug = { vc, modo, sugerir, s, cart, fix };
+  const linhaCart = (l,i) => `<tr><td class="tick">${esc(l.ticker)}</td>
+      ${sugerir ? `<td class="n">${brl(l.atual)}</td><td class="n">${brl(l.alvo)}</td><td class="n">${brl(l.deficit)}</td><td class="n">${brl(l.sugestao)}</td>` : ''}
+      <td class="n"><input class="cell w" data-q="${i}" inputmode="decimal" value="${l.qtd>0?qtdFmt(l, l.qtd):''}" placeholder="0">${l.qtdTroco?`<div class="small">+${qtdFmt(l,l.qtdTroco)} do troco</div>`:''}</td>
+      <td class="n"><input class="cell" data-p="${i}" inputmode="decimal" value="${l.preco>0?nf(l.preco,2,6):''}" placeholder="preço"></td>
+      <td class="n" data-t="${i}">${brl(l.gasto)}</td></tr>`;
+  const linhaFix = (l,j) => `<tr><td class="tick">${esc(l.ticker)}</td>
+      <td class="n"><input class="cell" data-fv="${j}" inputmode="decimal" value="${l.valorPrev>0?nf(l.valorPrev,2):''}" placeholder="0,00"></td>
+      <td class="n"><input class="cell" data-fp="${j}" inputmode="decimal" value="${l.preco>0?nf(l.preco,2,6):''}" placeholder="preço"></td>
+      <td class="n"><input class="cell" data-fq="${j}" inputmode="decimal" value="${l.qtd>0?qtdFmt(l,l.qtd):''}" placeholder="0"></td>
+      <td class="n" data-ft="${j}">${brl(l.gasto)}</td></tr>`;
+  const colsCart = sugerir ? 8 : 4;
   $('#res').innerHTML = `
-    ${s.linhas.length?`<div class="card"><h2>Carteira — ${brl(vc)}</h2>
-      <p class="small" style="margin-top:-6px">Carteira atual ${brl(s.totalAtual)} + aporte = ${brl(s.totalProjetado)}. ${modo==='deficit'?`Déficits somam ${brl(s.somaDeficit)}; cada um recebe ${s.somaDeficit>0?pct(vc/s.somaDeficit):'—'} do seu valor.`:'Divisão direta pelos pesos.'}</p>
-      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Atual</th><th class="n">Alvo</th><th class="n">Déficit</th><th class="n">Sugestão</th><th class="n">Qtd</th><th class="n">Preço pago</th><th class="n">Total</th></tr></thead>
-      <tbody>${linhas}</tbody><tfoot><tr><td colspan="7">Total das compras</td><td class="n" id="totC">${brl(s.gasto)}</td></tr>
-      <tr><td colspan="7">Troco (sobra do arredondamento)</td><td class="n" id="troco">${brl(s.troco)}</td></tr></tfoot></table></div></div>`:''}
-    ${b?`<div class="card"><h2>Bitcoin — ${brl(vb)}</h2><div class="grid">
-      <div><label>Valor pago (R$)</label><input id="bval" inputmode="decimal" value="${nf(vb,2)}"></div>
-      <div><label>BTC recebido</label><input id="bqtd" inputmode="decimal" value="${nf(b.qtd,8)}"></div>
-      <div><label>Cotação usada</label><input disabled value="${brl(b.preco)}"></div></div>
-      <p class="small" style="margin:8px 0 0">Ajuste o BTC recebido conforme a corretora (taxas e spread).</p></div>`:''}
+    ${cart.length ? `<div class="card"><h2>Carteira${vc>0?' — '+brl(vc):''}</h2>
+      ${sugerir ? `<p class="small" style="margin-top:-6px">Carteira atual ${brl(s.totalAtual)} + aporte = ${brl(s.totalProjetado)}. ${modo==='deficit'?`Déficits somam ${brl(s.somaDeficit)}; cada um recebe ${s.somaDeficit>0?pct(vc/s.somaDeficit):'—'} do seu valor.`:'Divisão direta pelos pesos.'}</p>`
+                : `<p class="small" style="margin-top:-6px">${pesados.length ? 'Informe o valor para a carteira para ver a sugestão pelos pesos, ou lance livremente.' : 'Sem pesos definidos: preencha a quantidade e o preço do que comprou. Deixe em branco o que não comprou.'}</p>`}
+      <div class="tbl"><table><thead><tr><th>Ativo</th>${sugerir?'<th class="n">Atual</th><th class="n">Alvo</th><th class="n">Déficit</th><th class="n">Sugestão</th>':''}<th class="n">Qtd</th><th class="n">Preço pago</th><th class="n">Total</th></tr></thead>
+      <tbody>${cart.map(linhaCart).join('')}</tbody><tfoot><tr><td colspan="${colsCart-1}">Total da carteira</td><td class="n" id="totC">${brl(sugerir?s.gasto:0)}</td></tr>
+      ${vc>0?`<tr><td colspan="${colsCart-1}">Sobra do valor planejado</td><td class="n" id="troco">${brl(sugerir?s.troco:vc)}</td></tr>`:''}</tfoot></table></div></div>` : ''}
+    ${fix.length ? `<div class="card"><h2>Aplicações fixas</h2>
+      <div class="tbl"><table><thead><tr><th>Ativo</th><th class="n">Valor (R$)</th><th class="n">Preço</th><th class="n">Qtd</th><th class="n">Total</th></tr></thead>
+      <tbody>${fix.map(linhaFix).join('')}</tbody><tfoot><tr><td colspan="4">Total fixo</td><td class="n" id="totF">${brl(fix.reduce((t,l)=>t+l.gasto,0))}</td></tr></tfoot></table></div>
+      <p class="small" style="margin:8px 0 0">Mudou o valor? A quantidade é recalculada. Ajuste a quantidade conforme o que a corretora entregou (taxas e spread).</p></div>` : ''}
+    <div class="card"><div class="row" style="justify-content:space-between"><b>Total do aporte</b><b class="num" id="totA">—</b></div></div>
     <div class="row"><button class="btn primary" id="registrar">Registrar compras</button><span class="small">Registre depois de executar as compras na corretora.</span></div>`;
-  $$('[data-q],[data-p]').forEach(inp => inp.oninput = atualizarTotaisAporte);
+  $$('[data-q],[data-p],[data-fq],[data-fp]').forEach(inp => inp.oninput = atualizarTotaisAporte);
+  $$('[data-fv],[data-fp]').forEach(inp => inp.addEventListener('input', () => { const j = inp.dataset.fv ?? inp.dataset.fp; recalcFixo(Number(j)); }));
   $('#registrar').onclick = registrarAporte;
+  atualizarTotaisAporte();
+}
+function recalcFixo(j){
+  const l = S.sug.fix[j]; const v = parseNum($(`[data-fv="${j}"]`).value) || 0, pv = parseNum($(`[data-fp="${j}"]`).value) || 0;
+  $(`[data-fq="${j}"]`).value = v > 0 && pv > 0 ? qtdFmt(l, Calc.arredondaQtd(v / pv, l.fracao)) : '';
+  atualizarTotaisAporte();
 }
 function atualizarTotaisAporte(){
-  const { s, vc } = S.sug; let tot = 0;
-  s.linhas.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value)||0, pv = parseNum($(`[data-p="${i}"]`).value)||0;
-    $(`[data-t="${i}"]`).textContent = brl(qv*pv); tot += qv*pv; });
-  $('#totC').textContent = brl(tot); const tr = vc - tot; $('#troco').textContent = brl(tr); $('#troco').className = 'n ' + (tr < -0.005 ? 'neg' : '');
+  const { cart, fix, vc } = S.sug; let tc = 0, tf = 0;
+  cart.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value)||0, pv = parseNum($(`[data-p="${i}"]`).value)||0; $(`[data-t="${i}"]`).textContent = brl(qv*pv); tc += qv*pv; });
+  fix.forEach((l,j) => { const qv = parseNum($(`[data-fq="${j}"]`).value)||0, pv = parseNum($(`[data-fp="${j}"]`).value)||0; $(`[data-ft="${j}"]`).textContent = brl(qv*pv); tf += qv*pv; });
+  if ($('#totC')) $('#totC').textContent = brl(tc);
+  if ($('#totF')) $('#totF').textContent = brl(tf);
+  if ($('#troco')) { const tr = vc - tc; $('#troco').textContent = brl(tr); $('#troco').className = 'n ' + (tr < -0.005 ? 'neg' : ''); }
+  $('#totA').textContent = brl(tc + tf);
 }
 async function registrarAporte(){
-  const { s, b, vb, vc } = S.sug; const data = $('#adata').value, tipo = $('#atipo').value;
-  const itens = [];
-  s.linhas.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value), pv = parseNum($(`[data-p="${i}"]`).value);
-    if (qv > 0 && pv > 0) itens.push({ ativo_id:l.id, quantidade:qv, preco:pv }); });
-  if (b) { const bv = parseNum($('#bval').value), bq = parseNum($('#bqtd').value);
-    if (bv > 0 && bq > 0) itens.push({ ativo_id:b.id, quantidade:bq, preco: bv/bq }); }
+  const { cart, fix, vc } = S.sug; const data = $('#adata').value, tipo = $('#atipo').value;
+  const itens = []; let tc = 0, tf = 0;
+  cart.forEach((l,i) => { const qv = parseNum($(`[data-q="${i}"]`).value), pv = parseNum($(`[data-p="${i}"]`).value);
+    if (qv > 0 && pv > 0) { itens.push({ ativo_id:l.id, quantidade:qv, preco:pv }); tc += qv*pv; } });
+  fix.forEach((l,j) => { const qv = parseNum($(`[data-fq="${j}"]`).value), pv = parseNum($(`[data-fp="${j}"]`).value), v = parseNum($(`[data-fv="${j}"]`).value);
+    if (qv > 0 && pv > 0) { const preco = l.fracao === 'livre' && v > 0 ? v / qv : pv; itens.push({ ativo_id:l.id, quantidade:qv, preco }); tf += qv*preco; } });
   if (!itens.length) return toast('Nenhuma compra com quantidade e preço.', true);
-  const gastoCart = itens.filter(x => !b || x.ativo_id !== b.id).reduce((t,x) => t + x.quantidade*x.preco, 0);
   const btn = $('#registrar'); btn.disabled = true;
   try {
-    const ap = await q(sb.from('aportes').insert({ user_id:S.user.id, data, tipo, valor_btc: b ? (parseNum($('#bval').value)||0) : 0,
-      valor_carteira: vc, troco: Math.max(0, Math.round((vc - gastoCart)*100)/100) }).select().single());
+    const ap = await q(sb.from('aportes').insert({ user_id:S.user.id, data, tipo, valor_btc: Math.round(tf*100)/100,
+      valor_carteira: vc > 0 ? vc : Math.round(tc*100)/100, troco: vc > 0 ? Math.max(0, Math.round((vc - tc)*100)/100) : 0 }).select().single());
     await q(sb.from('lancamentos').insert(itens.map(x => ({ ...x, user_id:S.user.id, aporte_id:ap.id, data }))));
     if (!S.est?.data_inicio && tipo==='regular' && !S.aportes.length) await q(sb.from('estrategia').update({ data_inicio:data }).eq('user_id', S.user.id));
     toast(`Aporte registrado: ${itens.length} compra(s).`); S.tab = 'painel'; S.sug = null; recarregar();
@@ -595,62 +629,86 @@ function exportarCSV(lista, porId){
 }
 
 // ---------- estratégia ----------
+const MODELO_ATIVOS = [
+  { ticker:'BTC', nome:'Bitcoin', tipo:'cripto', papel:'fixo', valor_fixo:1000, peso:0, fracao:'livre', classe_ir:'cripto' },
+  { ticker:'NTNB40', nome:'Tesouro IPCA+ 2040', tipo:'tesouro', papel:'carteira', peso:0.25, fracao:'centesimo', classe_ir:'tesouro' },
+  { ticker:'DIVO11', nome:'ETF DIVO11', tipo:'etf', papel:'carteira', peso:0.125, fracao:'inteira', classe_ir:'rv15' },
+  { ticker:'ABTC11', nome:'ETF ABTC11', tipo:'etf', papel:'carteira', peso:0.125, fracao:'inteira', classe_ir:'rv15' },
+  { ticker:'AUVP11', nome:'ETF AUVP11', tipo:'etf', papel:'carteira', peso:0.25, fracao:'inteira', classe_ir:'rv15' },
+  { ticker:'XFIX11', nome:'ETF XFIX11', tipo:'etf', papel:'carteira', peso:0.125, fracao:'inteira', classe_ir:'rv15' },
+  { ticker:'IVVB11', nome:'ETF IVVB11', tipo:'etf', papel:'carteira', peso:0.125, fracao:'inteira', classe_ir:'rv15' },
+];
+const PADRAO_TIPO = { etf:['inteira','rv15'], acao:['inteira','rv15'], fii:['inteira','rv15'], tesouro:['centesimo','tesouro'], cripto:['livre','cripto'], outro:['inteira','rv15'] };
 function vEstrat(){
   const e = S.est || {};
-  const linhaAtivo = (a, i) => `<tr data-row="${i}" data-id="${a.id||''}">
-    <td><input class="cell w" data-k="ticker" value="${esc(a.ticker||'')}" style="text-align:left;text-transform:uppercase"></td>
+  S._ativosEd = S._ativosEd || S.ativos.map(a => ({ ...a, papel: isFixo(a) ? 'fixo' : 'carteira' }));
+  const ed = S._ativosEd;
+  const linhaAtivo = (a, i) => { const fixo = a.papel === 'fixo'; return `<tr data-row="${i}" data-id="${a.id||''}">
+    <td><input class="cell w" data-k="ticker" value="${esc(a.ticker||'')}" style="text-align:left;text-transform:uppercase" placeholder="TICKER"></td>
     <td><input data-k="nome" value="${esc(a.nome||'')}" style="min-width:140px"></td>
     <td><select data-k="tipo">${['etf','tesouro','cripto','acao','fii','outro'].map(t=>`<option ${a.tipo===t?'selected':''} value="${t}">${ ({etf:'ETF',tesouro:'Tesouro',cripto:'Cripto',acao:'Ação',fii:'FII',outro:'Outro'})[t] }</option>`).join('')}</select></td>
-    <td><select data-k="papel"><option value="carteira" ${a.papel!=='btc'?'selected':''}>Carteira</option><option value="btc" ${a.papel==='btc'?'selected':''}>Fixo (BTC)</option></select></td>
-    <td class="n"><input class="cell w" data-k="peso" inputmode="decimal" value="${a.papel==='btc'?'':nf(Number(a.peso||0)*100,0,4)}" ${a.papel==='btc'?'disabled':''}></td>
+    <td><select data-k="papel"><option value="carteira" ${!fixo?'selected':''}>Carteira</option><option value="fixo" ${fixo?'selected':''}>Aplicação fixa</option></select></td>
+    <td class="n">${fixo ? '<span class="muted">—</span>' : `<input class="cell w" data-k="peso" inputmode="decimal" value="${Number(a.peso)>0?nf(Number(a.peso)*100,0,4):''}" placeholder="—">`}</td>
+    <td class="n">${fixo ? `<input class="cell" data-k="valor_fixo" inputmode="decimal" value="${Number(a.valor_fixo)>0?nf(a.valor_fixo,2):''}" placeholder="0,00">` : '<span class="muted">—</span>'}</td>
     <td><select data-k="fracao"><option value="inteira" ${a.fracao==='inteira'?'selected':''}>Inteira</option><option value="centesimo" ${a.fracao==='centesimo'?'selected':''}>0,01</option><option value="livre" ${a.fracao==='livre'?'selected':''}>Livre</option></select></td>
     <td><select data-k="classe_ir"><option value="rv15" ${a.classe_ir==='rv15'?'selected':''}>RV 15%</option><option value="tesouro" ${a.classe_ir==='tesouro'?'selected':''}>Tesouro</option><option value="cripto" ${a.classe_ir==='cripto'?'selected':''}>Cripto</option></select></td>
-    <td><input data-k="simbolo_cotacao" value="${esc(a.simbolo_cotacao||'')}" placeholder="${a.tipo==='tesouro'?'Tesouro IPCA+ 2040':a.tipo==='cripto'?'bitcoin':'automático'}" style="min-width:150px"></td>
+    <td><input data-k="simbolo_cotacao" value="${esc(a.simbolo_cotacao||'')}" placeholder="${a.tipo==='tesouro'?'ex.: Tesouro Selic 2031':a.tipo==='cripto'?'ex.: bitcoin':'automático'}" style="min-width:170px"></td>
     <td style="text-align:center"><input type="checkbox" data-k="ativo" ${a.ativo!==false?'checked':''}></td>
-    <td><button type="button" class="btn link sm danger" data-rm="${i}">Remover</button></td></tr>`;
-  S._ativosEd = S._ativosEd || S.ativos.map(a => ({...a}));
-  const somaPesos = () => S._ativosEd.filter(a => a.papel==='carteira' && a.ativo!==false).reduce((s,a) => s + Number(a.peso||0), 0);
-  $('#main').innerHTML = `<h1>Estratégia</h1><p class="sub">Valores fixos, periodicidade, meta e os ativos com seus pesos-alvo.</p>
-    <div class="card"><h2>Aporte e meta</h2><div class="grid">
-      <div><label>Valor fixo BTC (R$)</label><input id="ebtc" inputmode="decimal" value="${nf(e.valor_btc,2)}"></div>
-      <div><label>Valor fixo carteira (R$)</label><input id="ecart" inputmode="decimal" value="${nf(e.valor_carteira,2)}"></div>
-      <div><label>Periodicidade</label><select id="eper">${['semanal','quinzenal','mensal','livre'].map(p=>`<option ${e.periodicidade===p?'selected':''} value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
-      <div><label>Regra de cálculo</label><select id="emodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>
-      <div><label>Meta de aportes (R$)</label><input id="emeta" inputmode="decimal" value="${nf(e.meta_valor,2)}"></div>
-      <div><label>Prazo (períodos)</label><input id="eprazo" inputmode="numeric" value="${e.meta_periodos??''}"></div>
-      <div><label>Data de início</label><input id="eini" type="date" value="${e.data_inicio||''}"></div>
-      <div><label>Corretora do BTC (para IR)</label><select id="ereg"><option value="nacional" ${e.btc_regime!=='exterior'?'selected':''}>Brasileira</option><option value="exterior" ${e.btc_regime==='exterior'?'selected':''}>No exterior</option></select></div>
-    </div></div>
+    <td><button type="button" class="btn link sm danger" data-rm="${i}">Remover</button></td></tr>`; };
+  const somaPesos = () => ed.filter(a => a.papel==='carteira' && a.ativo!==false).reduce((s,a) => s + Number(a.peso||0), 0);
+  const somaFixos = () => ed.filter(a => a.papel==='fixo' && a.ativo!==false).reduce((s,a) => s + Number(a.valor_fixo||0), 0);
+  $('#main').innerHTML = `<h1>Estratégia</h1><p class="sub">Monte sua estratégia do seu jeito: os ativos que quiser, com ou sem pesos, e quantas aplicações fixas quiser.</p>
     <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Ativos</h2><span id="psum" class="tag"></span></div>
-      <p class="small">"Código p/ cotação" é opcional: em branco, o app usa o próprio ticker (NTNB40 vira Tesouro IPCA+ 2040). Preencha só se a busca automática não encontrar o ativo. Peso em % só para ativos da carteira; precisa somar 100%. O BTC é aplicação fixa e fica fora das proporções. Para parar de aportar num ativo sem perder o histórico, desmarque "Ativo".</p>
-      <div class="tbl"><table><thead><tr><th>Ticker</th><th>Nome</th><th>Tipo</th><th>Papel</th><th class="n">Peso %</th><th>Fração</th><th>IR</th><th>Código p/ cotação</th><th>Ativo</th><th></th></tr></thead>
-      <tbody id="tbA">${S._ativosEd.map(linhaAtivo).join('')}</tbody></table></div>
-      <button type="button" class="btn sm" id="addA" style="margin-top:10px">+ Adicionar ativo</button></div>
+      <ul class="small" style="margin:8px 0 12px;padding-left:18px">
+        <li><b>Carteira:</b> ativos que você compra a cada aporte. Com pesos que somam 100%, o app sugere quanto comprar de cada um. Sem pesos, você lança as compras livremente.</li>
+        <li><b>Aplicação fixa:</b> um valor fixo por aporte, fora das proporções (ex.: BTC, Tesouro Selic). Pode haver mais de uma.</li>
+        <li><b>Código p/ cotação</b> é opcional: em branco, o app usa o próprio ticker. Para parar de aportar num ativo sem perder o histórico, desmarque "Ativo".</li>
+      </ul>
+      ${ed.length ? `<div class="tbl"><table><thead><tr><th>Ticker</th><th>Nome</th><th>Tipo</th><th>Papel</th><th class="n">Peso %</th><th class="n">Valor fixo (R$)</th><th>Fração</th><th>IR</th><th>Código p/ cotação</th><th>Ativo</th><th></th></tr></thead>
+      <tbody id="tbA">${ed.map(linhaAtivo).join('')}</tbody></table></div>`
+      : `<div class="ok">Nenhum ativo ainda. Adicione os seus, ou carregue o modelo de exemplo e ajuste como quiser.</div>`}
+      <div class="row" style="margin-top:10px"><button type="button" class="btn sm" id="addA">+ Adicionar ativo</button>${ed.length ? '' : '<button type="button" class="btn sm" id="modelo">Usar modelo de exemplo</button>'}</div></div>
+    <div class="card"><h2>Aporte e meta</h2><div class="grid">
+      <div><label>Valor padrão da carteira por aporte (R$) — opcional</label><input id="ecart" inputmode="decimal" value="${Number(e.valor_carteira)>0?nf(e.valor_carteira,2):''}" placeholder="em branco = informar a cada aporte"></div>
+      <div><label>Periodicidade</label><select id="eper">${['semanal','quinzenal','mensal','livre'].map(p=>`<option ${e.periodicidade===p?'selected':''} value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
+      <div><label>Regra de cálculo (com pesos)</label><select id="emodo"><option value="deficit" ${e.modo_calculo!=='simples'?'selected':''}>Rebalancear pelo aporte</option><option value="simples" ${e.modo_calculo==='simples'?'selected':''}>Simples (pelos pesos)</option></select></div>
+      <div><label>Meta de aportes (R$) — opcional</label><input id="emeta" inputmode="decimal" value="${Number(e.meta_valor)>0?nf(e.meta_valor,2):''}" placeholder="sem meta"></div>
+      <div><label>Prazo (períodos) — opcional</label><input id="eprazo" inputmode="numeric" value="${Number(e.meta_periodos)>0?e.meta_periodos:''}"></div>
+      <div><label>Data de início</label><input id="eini" type="date" value="${e.data_inicio||''}"></div>
+      <div><label>Corretora de cripto (para IR)</label><select id="ereg"><option value="nacional" ${e.btc_regime!=='exterior'?'selected':''}>Brasileira</option><option value="exterior" ${e.btc_regime==='exterior'?'selected':''}>No exterior</option></select></div>
+    </div><p class="small" id="porper" style="margin:10px 0 0"></p></div>
     <div class="row"><button class="btn primary" id="salvaE">Salvar estratégia</button><button class="btn" id="descE">Descartar alterações</button></div>`;
-  const atualizaSoma = () => { const s = somaPesos(); const t = $('#psum'); t.textContent = 'Soma dos pesos: ' + nf(s*100,1,4) + '%'; t.className = 'tag' + (Math.abs(s-1) > 0.0001 ? ' warn' : ''); };
+  const atualizaSoma = () => { const s = somaPesos(), t = $('#psum');
+    t.textContent = s < 0.0001 ? 'Sem pesos: compras livres' : 'Soma dos pesos: ' + nf(s*100,1,4) + '%';
+    t.className = 'tag' + (s > 0.0001 && Math.abs(s-1) > 0.0001 ? ' warn' : '');
+    const vc = parseNum($('#ecart')?.value) || 0, vf = somaFixos();
+    $('#porper').textContent = vf + vc > 0 ? `Por aporte: ${vf>0?'fixos '+brl(vf):''}${vf>0&&vc>0?' + ':''}${vc>0?'carteira '+brl(vc):''} = ${brl(vf+vc)}. Usado no "aportado × previsto" do Painel.` : 'Sem valor padrão por aporte: você informa o valor a cada aporte.'; };
   atualizaSoma();
-  $('#tbA').oninput = $('#tbA').onchange = (ev) => { const tr = ev.target.closest('tr'); const i = Number(tr.dataset.row); const k = ev.target.dataset.k; if (!k) return;
-    const a = S._ativosEd[i]; let v = ev.target.type==='checkbox' ? ev.target.checked : ev.target.value;
-    if (k==='peso') v = (parseNum(v)||0)/100; if (k==='ticker') v = v.toUpperCase().trim();
-    a[k] = v; if (k==='papel' && ev.type==='change') { if (v==='btc') { a.peso = 0; a.fracao='livre'; a.tipo='cripto'; a.classe_ir='cripto'; } vEstrat(); return; }
+  $('#ecart').oninput = atualizaSoma;
+  if ($('#tbA')) $('#tbA').oninput = $('#tbA').onchange = (ev) => { const tr = ev.target.closest('tr'); const i = Number(tr.dataset.row); const k = ev.target.dataset.k; if (!k) return;
+    const a = ed[i]; let v = ev.target.type==='checkbox' ? ev.target.checked : ev.target.value;
+    if (k==='peso') v = (parseNum(v)||0)/100; if (k==='valor_fixo') v = parseNum(v)||0; if (k==='ticker') v = v.toUpperCase().trim();
+    a[k] = v;
+    if (ev.type==='change' && k==='tipo') { const [f, ir] = PADRAO_TIPO[v] || ['inteira','rv15']; a.fracao = f; a.classe_ir = ir; vEstrat(); return; }
+    if (ev.type==='change' && k==='papel') { if (v==='fixo') a.peso = 0; else a.valor_fixo = null; vEstrat(); return; }
     atualizaSoma(); };
-  $$('[data-rm]').forEach(b => b.onclick = () => { const i = Number(b.dataset.rm); const a = S._ativosEd[i];
+  $$('[data-rm]').forEach(b => b.onclick = () => { const i = Number(b.dataset.rm); const a = ed[i];
     const n = a.id ? S.lancs.filter(l => l.ativo_id === a.id).length : 0;
     if (n && !confirm(`${a.ticker} tem ${n} lançamento(s). Remover apaga também esses lançamentos e cotações. Para manter o histórico, cancele e desmarque "Ativo". Remover mesmo assim?`)) return;
-    S._ativosEd.splice(i,1); vEstrat(); });
-  $('#addA').onclick = () => { S._ativosEd.push({ ticker:'', nome:'', tipo:'etf', papel:'carteira', peso:0, fracao:'inteira', classe_ir:'rv15', ativo:true }); vEstrat(); };
+    ed.splice(i,1); vEstrat(); });
+  $('#addA').onclick = () => { ed.push({ ticker:'', nome:'', tipo:'etf', papel:'carteira', peso:0, valor_fixo:null, fracao:'inteira', classe_ir:'rv15', ativo:true }); vEstrat(); };
+  if ($('#modelo')) $('#modelo').onclick = () => { MODELO_ATIVOS.forEach(m => ed.push({ ...m, ativo:true })); vEstrat(); toast('Modelo carregado. Ajuste e clique em "Salvar estratégia".'); };
   $('#descE').onclick = () => { S._ativosEd = null; vEstrat(); };
   $('#salvaE').onclick = salvarEstrategia;
 }
 async function salvarEstrategia(){
   const ed = S._ativosEd;
-  const tickers = ed.map(a => a.ticker);
+  const tickers = ed.map(a => (a.ticker||'').trim());
   if (tickers.some(t => !t)) return toast('Todo ativo precisa de ticker.', true);
   if (new Set(tickers).size !== tickers.length) return toast('Há tickers repetidos.', true);
   const soma = ed.filter(a => a.papel==='carteira' && a.ativo!==false).reduce((s,a) => s + Number(a.peso||0), 0);
-  if (Math.abs(soma - 1) > 0.0001) return toast('Os pesos da carteira precisam somar 100% (hoje: ' + nf(soma*100,2) + '%).', true);
-  if (ed.filter(a => a.papel==='btc').length > 1) return toast('Use só um ativo como aplicação fixa (BTC).', true);
-  const est = { user_id:S.user.id, valor_btc:parseNum($('#ebtc').value)||0, valor_carteira:parseNum($('#ecart').value)||0, periodicidade:$('#eper').value,
+  if (soma > 0.0001 && Math.abs(soma - 1) > 0.0001) return toast('Os pesos da carteira precisam somar 100% (hoje: ' + nf(soma*100,2) + '%), ou ficar todos em branco para compras livres.', true);
+  const est = { user_id:S.user.id, valor_carteira:parseNum($('#ecart').value)||0, periodicidade:$('#eper').value,
     modo_calculo:$('#emodo').value, meta_valor:parseNum($('#emeta').value)||0, meta_periodos:parseInt($('#eprazo').value)||0, data_inicio:$('#eini').value||null,
     btc_regime:$('#ereg').value, atualizado_em:new Date().toISOString() };
   try {
@@ -658,12 +716,14 @@ async function salvarEstrategia(){
     const manter = new Set(ed.filter(a => a.id).map(a => a.id));
     const remover = S.ativos.filter(a => !manter.has(a.id)).map(a => a.id);
     if (remover.length) await q(sb.from('ativos').delete().in('id', remover));
-    const campos = (a, i) => ({ ticker:a.ticker, nome:a.nome||null, tipo:a.tipo, papel:a.papel, peso:a.papel==='btc'?0:Number(a.peso||0), fracao:a.fracao, classe_ir:a.classe_ir, simbolo_cotacao:(a.simbolo_cotacao||'').trim()||null, ativo:a.ativo!==false, ordem:i });
+    const campos = (a, i) => ({ ticker:a.ticker.trim(), nome:a.nome||null, tipo:a.tipo, papel:a.papel==='fixo'?'fixo':'carteira',
+      peso:a.papel==='fixo'?0:Number(a.peso||0), valor_fixo:a.papel==='fixo'?Number(a.valor_fixo||0):null,
+      fracao:a.fracao, classe_ir:a.classe_ir, simbolo_cotacao:(a.simbolo_cotacao||'').trim()||null, ativo:a.ativo!==false, ordem:i });
     for (const [i,a] of ed.entries()) { if (a.id) await q(sb.from('ativos').update(campos(a,i)).eq('id', a.id)); }
     const novos = ed.map((a,i) => [a,i]).filter(([a]) => !a.id).map(([a,i]) => ({ ...campos(a,i), user_id:S.user.id }));
     if (novos.length) await q(sb.from('ativos').insert(novos));
     S._ativosEd = null; toast('Estratégia salva.'); recarregar();
-  } catch(e){ toast(erroMsg(e), true); }
+  } catch(e){ toast(/valor_fixo|papel_check/.test(e.message||'') ? 'Falta rodar a atualização do banco (supabase_atualizacao_estrategia_livre.sql) no Supabase.' : erroMsg(e), true); }
 }
 
 // ---------- importar planilha ----------
@@ -702,7 +762,7 @@ async function importar(){
   try {
     if ($('#limpar')?.checked) { await q(sb.from('lancamentos').delete().eq('user_id', uid)); await q(sb.from('aportes').delete().eq('user_id', uid)); }
     const faltam = [...new Set(r.lancamentos.map(l => l.ticker))].filter(t => !S.ativos.some(a => a.ticker === t));
-    if (faltam.length) await q(sb.from('ativos').insert(faltam.map((t,i) => ({ user_id:uid, ticker:t, tipo: t==='BTC'?'cripto':t.startsWith('NTNB')?'tesouro':'etf', papel: t==='BTC'?'btc':'carteira',
+    if (faltam.length) await q(sb.from('ativos').insert(faltam.map((t,i) => ({ user_id:uid, ticker:t, tipo: t==='BTC'?'cripto':t.startsWith('NTNB')?'tesouro':'etf', papel: t==='BTC'?'fixo':'carteira',
       peso:0, fracao: t==='BTC'?'livre':t.startsWith('NTNB')?'centesimo':'inteira', classe_ir: t==='BTC'?'cripto':t.startsWith('NTNB')?'tesouro':'rv15', ordem: 50+i }))));
     const ativos = await q(sb.from('ativos').select('*')); const idDe = Object.fromEntries(ativos.map(a => [a.ticker, a.id]));
     const aps = await q(sb.from('aportes').insert(grupos.map(g => ({ user_id:uid, data:g.data, tipo:'regular', valor_btc:Math.round(g.valor_btc*100)/100, valor_carteira:Math.round(g.valor_carteira*100)/100, obs:'Importado da planilha' }))).select());
