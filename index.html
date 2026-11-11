@@ -91,6 +91,18 @@ input[type=checkbox]{width:auto}
 #toast.err{background:var(--neg);color:#fff}
 .muted{color:var(--muted)}
 
+.ind{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.ind .bx{border-radius:var(--radius);padding:10px 12px;border:1px solid var(--line);background:var(--card);min-width:0}
+.ind .bx.up{background:#e3f4e8;border-color:#bfe3c9;color:#14532d}
+.ind .bx.dn{background:#fbe6e4;border-color:#f1c4bf;color:#7f1d1d}
+.ind .n1{font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;opacity:.85}
+.ind .n2{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind .n3{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.ind .n4{font-size:11px;opacity:.7}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ind .bx.up{background:#12301d;border-color:#1f5131;color:#86efac} :root:not([data-theme="light"]) .ind .bx.dn{background:#3a1715;border-color:#5e2420;color:#fca5a5} }
+:root[data-theme="dark"] .ind .bx.up{background:#12301d;border-color:#1f5131;color:#86efac}
+:root[data-theme="dark"] .ind .bx.dn{background:#3a1715;border-color:#5e2420;color:#fca5a5}
+@media (max-width:640px){ .ind{grid-template-columns:repeat(2,minmax(0,1fr))} .ind .n2{font-size:16px} }
 #tbA select{min-width:108px;padding:6px 8px}
 #tbA input[data-k=nome]{min-width:150px}
 .hwrap{display:flex;align-items:flex-start}
@@ -276,6 +288,7 @@ function vPainel(){
 
   $('#main').innerHTML = `
     <h1>Painel</h1><p class="sub">Posição atual, metas e cotações. Edite os preços e salve para atualizar.</p>
+    <div class="ind" id="ind">${htmlIndices()}</div>
     ${semPreco.length?`<div class="note">Sem cotação: ${semPreco.map(p=>esc(p.ticker)).join(', ')}. Informe o preço abaixo para calcular o valor atual.</div>`:''}
     ${!S.ativos.length ? `<div class="ok">Sua conta ainda não tem ativos. Comece pela aba <b>Estratégia</b>: cadastre os ativos da carteira e, se quiser, as aplicações fixas.</div>` : ''}
     <div class="kpis">
@@ -309,6 +322,34 @@ function vPainel(){
 
   $('#salvaCot').onclick = salvarCotacoes;
   $('#atuCot').onclick = () => atualizarCotacoes(false);
+  carregarIndices();
+}
+// ---------- faixa de índices do dia ----------
+const INDICES_BASE = [['IBOV','IBOV'],['SP500','S&P 500'],['IFIX','IFIX'],['BTC','BTC']];
+function htmlIndices(){
+  const dados = S.ind?.dados || [];
+  return INDICES_BASE.map(([id, nome]) => {
+    const d = dados.find(x => x.id === id);
+    if (!d) return `<div class="bx"><div class="n1">${nome}</div><div class="n2 muted">…</div><div class="n3 muted">carregando</div></div>`;
+    if (d.erro || !(d.valor > 0)) return `<div class="bx" title="${esc(d.erro||'')}"><div class="n1">${nome}</div><div class="n2 muted">—</div><div class="n3 muted">indisponível</div></div>`;
+    const v = d.variacao, cls = v == null ? '' : v >= 0 ? 'up' : 'dn';
+    const valor = d.moeda === 'BRL' ? brl(d.valor).replace(/,\d{2}$/, '') : nf(d.valor, d.valor >= 10000 ? 0 : 2);
+    const varTxt = v == null ? '—' : (v >= 0 ? '▲ +' : '▼ ') + (v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+    return `<div class="bx ${cls}" title="${esc(nome)} · atualizado ${new Date(d.data).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}"><div class="n1">${nome}</div><div class="n2">${valor}</div><div class="n3">${varTxt}</div><div class="n4">${d.periodo==='24h'?'24 horas':'no dia'}</div></div>`;
+  }).join('');
+}
+async function carregarIndices(){
+  if (S.ind && Date.now() - S.ind.t < 5*60*1000) return;   // reaproveita por 5 minutos
+  if (S.ind?.carregando) return;
+  S.ind = { ...(S.ind||{}), carregando:true, t: S.ind?.t || 0 };
+  try {
+    const { data, error } = await sb.functions.invoke('cotacoes', { body: { indices: true } });
+    if (error) throw error;
+    S.ind = { t: Date.now(), dados: data?.indices || [] };
+  } catch(e){
+    S.ind = { t: Date.now() - 4*60*1000, dados: INDICES_BASE.map(([id]) => ({ id, erro: erroMsg(e) })) };
+  }
+  if ($('#ind')) $('#ind').innerHTML = htmlIndices();
 }
 async function salvarCotacoes(){
   const novas = [];
